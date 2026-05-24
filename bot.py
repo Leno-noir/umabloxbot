@@ -12,6 +12,7 @@ from db.guild_configs import (
     guild_get_blacklisted_users_join_alert_channel,
 )
 from cogs.blacklist.utils import build_blacklist_join_alert_embed
+from cogs.blacklist.views import BlacklistBanPromptView
 
 #configure bot intents (permissions for reading guild events)
 intents = discord.Intents.default()
@@ -87,9 +88,10 @@ async def on_member_join(member: discord.Member):
 
     #create embed with blacklist join alert
     embed = build_blacklist_join_alert_embed(member, record)
+    view = BlacklistBanPromptView(member.id, record["reason"])
 
     #send the alert to the local observer alert channel
-    await channel.send(embed=embed)
+    await channel.send(embed=embed, view=view)
 
 
 

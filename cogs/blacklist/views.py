@@ -43,6 +43,21 @@ class ConfirmRemoveView(discord.ui.View):
         for item in self.children:
             item.disabled = True
 
+class BlacklistBanPromptView(discord.ui.View):
+    """Button that copy the ban command to ban a user that just joined and is on the blacklist."""
+    
+    def __init__(self, discord_id: int, reason: str):
+        super().__init__(timeout=600)
+        self.discord_id = discord_id
+        self.reason = reason
+
+    @discord.ui.button(label="Copy Ban Command", style=discord.ButtonStyle.primary)
+    async def copy_ban_command(self, interaction: discord.Interaction, button: discord.ui.Button):
+        command = f"/ban user:{self.discord_id} reason:{self.reason}"
+        await interaction.response.send_message(
+            f"Command copied to clipboard:\n```{command}```",
+            ephemeral=True,
+        )
 
 #View to see the blacklist on a panel, with navigation buttons, next and previous pages
 class BlacklistPanelView(discord.ui.View):
