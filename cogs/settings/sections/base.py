@@ -65,7 +65,12 @@ class RoleSelect(discord.ui.RoleSelect):
 
     async def callback(self, interaction: discord.Interaction):
         role = self.values[0]
-        await guild_save_settings(self._guild_id, {self._key: role.name})
+        # Save both role name and ID for manager-only commands
+        settings = {self._key: role.name}
+        # If this is a manager role, also save the ID for permission restrictions
+        if "manager_role" in self._key:
+            settings[self._key.replace("_role", "_role_id")] = role.id
+        await guild_save_settings(self._guild_id, settings)
         await interaction.response.send_message(
             f"Role set to **{role.name}**",
             ephemeral=True,

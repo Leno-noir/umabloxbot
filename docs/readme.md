@@ -1,159 +1,169 @@
-# UMABLOX Bot - Blacklist Module
+# UMABLOX Bot
 
-Shared blacklist management bot for Discord servers using Roblox integration.
+Discord bot for the Umablox community.
 
-## Quick Start
+## What This Project Is
 
-### Prerequisites
-- Python 3.10+
-- Discord Bot Token
-- MongoDB Atlas account (free tier available)
+UMABLOX Bot is a Discord bot for a multi-server network that keeps moderation, notifications, helps on promoting, feedback, devs networking and server-specific configuration in one place.
 
-### Setup
+It is organized around 3 server roles:
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/umabloxbot.git
-   cd umabloxbot
-   ```
+- **Uma Portal**
+  - main administration server
+  - has the full blacklist workflow
+  - has the full dev networking workflow
+  - has the full dev feedback workflow
+  - has the central `/settings` panel
+  - manages allowed observer servers
 
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+- **Umablox Universe**
+  - main promotion server
+  - used for features like promotion and fun commands
 
-3. **Configure credentials**
-   ```bash
-   # Copy the example environment file
-   cp .env.example .env
-   
-   # Edit .env and fill in your credentials
-   # (See instructions below)
-   ```
+- **Other connected servers**
+  - can participate as observer servers when allowed by the main guild
+  - can receive blacklist notifications through their own configured log channels
+  - can use fun commands
 
-4. **Run the bot**
-   ```bash
-   python bot.py
-   ```
+The bot uses MongoDB as database.
+the bot uses WIP as hosting
 
----
+## Core Features
 
-## Environment Variables (`.env`)
+- Shared blacklist with add, remove, info, history, list, panel, and log commands
+- Observer server allowlist and enable/disable control
+- Per-server settings stored in MongoDB
+- Join alerts for blacklisted users in observer servers
+- Cogs for blacklist, settings, feedback, promotion, networking, and fun features
 
-**⚠️ IMPORTANT:** Never commit `.env` to Git. Use `.env.example` as a template.
+## How the Network Works
+
+The bot treats the main guild as the control center.
+
+- The main guild shows the full blacklist management experience.
+- Allowed observer guilds receive a reduced `/settings` panel.
+- Unknown guilds do not any access.
+- Blacklist read commands are public in the main guild, while write commands are restricted. (some exceptions)
+- When a blacklisted user joins an enabled observer server, that server can receive a notification in its configured alert channel.
+
+This means moderation data is shared across the network, but local notification channels remain configurable per guild. (every server configures their own channel for it)
+
+## Main Modules
+
+- `bot.py`
+  - application entry point
+  - loads the cogs
+  - starts the bot
+  - handles events like member joins and command errors
+
+- `core/`
+  - shared configuration, utilities, and command sync helpers
+
+- `db/`
+  - MongoDB connection and persistence helpers
+  - blacklist data
+  - guild configuration data
+  - allowlist data for connected observer servers
+
+- `cogs/`
+  - feature modules for blacklist, settings, feedback, promotion, networking, and funsies
+
+## Server Roles
+
+### Uma Portal
+
+This is the main control guild.
+
+It is responsible for:
+
+- blacklist moderation
+- blacklist logs
+- dev networking function
+- feedback function
+- allowlist management for observer servers
+- full settings administration
+
+### Umablox Universe
+
+This is the guild for promotion functions
+
+It has:
+
+ - promotion function
+ - fun commands
+
+### Observer Servers
+
+These are connected servers approved by the main guild. (in the allowlist)
+
+They can:
+
+- use the reduced `/settings` panel
+- configure their local blacklist join alert channel
+- receive blacklist alerts when configured
+- use fun commands
+
+### Other Servers / Unknown Servers
+
+Servers that are not allowlisted do not participate in the network settings flow and do not receive observer-only features.
+
+They will be able to use fun commands as their only function
+
+
+
+## Environment Variables
 
 ### Required Variables
 
-**`DISCORD_TOKEN`** (string)
+**`DISCORD_TOKEN`**
 - Discord bot token
-- Get it from: https://discord.com/developers/applications
+- Create it in the Discord Developer Portal
+CAREFUL!! do not give this token to anyone (people can access your account through this)
 
-**`MONGODB_URI`** (string)
+**`MONGODB_URI`**
 - MongoDB connection string
-- Format: `mongodb+srv://username:password@cluster.mongodb.net/?appName=appname`
+- Example format:
+  `mongodb+srv://username:password@cluster.mongodb.net/?appName=appname`
 
-**`MAIN_GUILD_ID`** (integer)
-- Main Discord server ID (Uma Portal)
-- Enable Developer Mode in Discord settings
-- Right-click server name → "Copy Server ID"
-- Example: `1504205705245102172`
+**`MAIN_GUILD_ID`**
+- The Discord server ID for `Uma Portal`
+- This is the bot's main management guild
 
-### Optional Variables
 
-Currently all settings are managed via the `/settings` command, which stores configuration in MongoDB. No additional `.env` variables needed.
+---
 
+## Command Groups
+
+The current command surface is split by purpose:
+
+- **Blacklist**
+  - `/blacklist-add`
+  - `/blacklist-remove`
+  - `/blacklist-info`
+  - `/blacklist-list`
+  - `/blacklist-panel`
+  - `/blacklist-history`
+  - `/blacklist-log`
+
+- **Settings**
+  - `/settings`
+
+- **Future or placeholder modules**
+  - promotion
+  - networking
+  - funsies
 
 ---
 
 ## Bot Permissions
 
-When inviting the bot to servers, grant these permissions:
-- ✅ Send Messages
-- ✅ Embed Links
-- ✅ View Channels
-- ✅ Read Message History
+When inviting the bot, grant at least: (WIP MIGHT NEED MORE PERMISSIONS)
+- Send Messages
+- Embed Links
+- View Channels
+- Read Message History
+
+To join alerts work:
+- make sure the bot can see and send messages in the configured observer alert channel
 
 ---
-
-## Commands
-
-See [commands.md](commands.md) for a complete list of all available commands.
-
-### Quick Reference
-
-| Command | Description | Permission |
-|---|---|---|
-| `/blacklist-add` | Add a user to the blacklist | Ban Members or Blacklist Manager role |
-| `/blacklist-remove` | Remove a user from the blacklist | Ban Members or Blacklist Manager role |
-| `/blacklist-info` | Check a user's blacklist status | Public |
-| `/blacklist-list` | List all banned users (paginated) | Public |
-| `/blacklist-history` | Show complete history for a user | Ban Members or Blacklist Manager role |
-| `/blacklist-log` | Show global event log | Ban Members or Blacklist Manager role |
-| `/blacklist-panel` | Send navigation panel | Public |
-| `/settings` | Configure bot settings | Server Administrator |
-
----
-
-## Project Structure
-
-```
-.
-├── bot.py                          # Main bot entry point
-├── .env                            # Local credentials (gitignored)
-├── .gitignore                      # Git ignore rules
-│
-├── core/                           # Core configuration and utilities
-│   ├── __init__.py
-│   ├── config.py                   # Configuration loader
-│   └── utils.py                    # Global utility functions
-│
-├── db/                             # Database layer
-│   ├── __init__.py
-│   ├── connection.py               # MongoDB connection
-│   ├── guild_configs.py            # Guild settings
-│   └── blacklist.py                # Blacklist operations
-│
-├── cogs/                           # Discord command modules
-│   ├── blacklist/                  # Blacklist management
-│   ├── settings/                   # Server settings UI
-│   ├── feedback/                   # Feedback system (WIP)
-│   ├── promotion/                  # Promotion features (WIP)
-│   ├── networking/                 # Networking features (WIP)
-│   └── funsies/                    # Fun commands (WIP)
-│
-└── docs/                           # Documentation
-    ├── readme.md                   # Setup and usage guide
-    ├── commands.md                 # Complete command reference
-    ├── thingstoknowabout.md        # Discord.py concepts
-    ├── .env.example                # Environment template
-    └── requirements.txt            # Python dependencies
-```
-
----
-
-### Testing
-
-Run the bot locally:
-```bash
-python bot.py
-```
-
-Check for errors in the terminal output.
-
----
-
-## Troubleshooting
-
-### "MongoDB connected" error
-- Check your `MONGODB_URI` in `.env`
-- Verify network access is allowed in MongoDB Atlas (should be `0.0.0.0/0`)
-- Ensure your username/password are correct
-
-### Commands not appearing in Discord
-- Try the force sync: The bot automatically clears and resyncs commands on startup
-- Wait 5-10 seconds after bot starts
-- Close and reopen Discord client
-
-### "You do not have permission" error
-- Ensure you have "Ban Members" permission or assigned Blacklist Manager role
-- Check server member role hierarchy

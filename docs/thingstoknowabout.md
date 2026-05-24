@@ -1,15 +1,6 @@
 
 # Discord Bot Development Guide
 
-## Table of Contents
-1. [App Commands](#app-commands)
-2. [Ephemeral Messages](#ephemeral-messages)
-3. [Custom Decorators](#custom-decorators)
-4. [Embeds](#embeds)
-5. [Defer](#defer)
-6. [Discord Timestamps](#discord-timestamps)
-7. [Permissions and Checks](#permissions-and-checks)
-
 ---
 
 ## App Commands
@@ -40,14 +31,14 @@ Adds parameter descriptions that appear when users interact with the command.
 @app_commands.describe(discord_id="The Discord user ID to blacklist")
 ```
 
-This shows a helpful description when the user inputs the `discord_id` parameter.
+This shows a description when the user inputs the `discord_id` parameter.
 
 ---
 
 ## Ephemeral Messages
 
-### What Are Ephemeral Messages?
-Messages that are only visible to the user who triggered the command. They disappear after approximately 15 minutes.
+### What Are Those?
+Messages that are only visible to the user who used the command. Disappear after 15 minutes
 
 **Key Point:** `ephemeral=True` ensures privacy for sensitive information.
 
@@ -63,12 +54,26 @@ await interaction.response.send_message(
 
 ## Custom Decorators
 
-Custom decorators eliminate code duplication by encapsulating common validation and permission logic.
+Custom decorators for less code duplication.
+
+### @is_main_guild_only()
+Restricts a command so it can only run in `Uma Portal`.
+
+- Useful when a feature exists only in the main guild
+- Gives an error if the command is used elsewhere
+
+**Example:**
+```python
+@app_commands.command(name="blacklist-list", description="List active blacklist entries")
+@is_main_guild_only()
+async def blacklist_list(self, interaction: discord.Interaction, page: int = 1):
+    pass
+```
 
 ### @is_manager()
-Restricts command access to users with the "Ban Members" permission or a custom role.
+Restricts command access to users with the `Ban Members` permission or the configured blacklist manager role.
 
-- Returns an error message if the user lacks proper permissions
+- Returns an error message if the user doesnt have proper permissions
 - Command execution is prevented automatically
 
 **Example:**
@@ -99,14 +104,14 @@ async def blacklist_info(self, interaction: discord.Interaction, formated_discor
 
 ## Embeds
 
-Embeds are richly formatted messages with colors, titles, fields, and other visual elements.
+Embeds are the good looking messages with colors, titles, fields, and other things.
 
 ### Basic Structure
 ```python
 embed = discord.Embed(
     title="Title here",
     description="Description here",
-    color=Colors.RED,  # or use hex color (0xFF0000)
+    color=Colors.RED,  # or use hex color
 )
 ```
 
@@ -145,7 +150,7 @@ await interaction.response.send_message(embed=embed)
 
 ## Defer
 
-Defers a response when a command takes time to process, preventing Discord timeout errors.
+Defers a response when a command takes time to process, preventing Discord errors.
 
 ### Basic Usage
 ```python
@@ -165,7 +170,7 @@ await interaction.followup.send("Message here")
 async def blacklist_info(self, interaction: discord.Interaction, discord_id: str):
     await interaction.response.defer(ephemeral=True)
     
-    # Perform time-consuming database queries
+    # Takes a time searching
     history = await bl_history(discord_id)
     
     # Send the response after processing
@@ -184,15 +189,15 @@ Formats dates and times that automatically convert to each user's timezone.
 ```
 
 ### Format Flags
-| Flag | Example Output | Description |
-|------|----------------|-------------|
-| `d` | 20/05/2026 | Short date |
-| `D` | May 20, 2026 | Long date |
-| `t` | 14:30 | Short time |
-| `T` | 14:30:45 | Long time |
-| `f` | May 20, 2026 14:30 | Short date/time |
-| `F` | Friday, May 20, 2026 14:30 | Long date/time |
-| `R` | 2 hours ago | Relative time (updates automatically) |
+| Flag | Example Output             | Description                           |
+|------|----------------------------|---------------------------------------|
+| `d`  | 20/05/2026                 | Short date                            |
+| `D`  | May 20, 2026               | Long date                             |
+| `t`  | 14:30                      | Short time                            |
+| `T`  | 14:30:45                   | Long time                             |
+| `f`  | May 20, 2026 14:30         | Short date/time                       |
+| `F`  | Friday, May 20, 2026 14:30 | Long date/time                        |
+| `R`  | 2 hours ago                | Relative time (updates automatically) |
 
 ### Usage Examples
 ```python
@@ -250,6 +255,8 @@ if has_role:
 ### Custom Implementation in This Bot
 ```python
 @is_manager()
-# Checks if user has "Ban Members" permission OR a custom BLACKLIST_ROLE_NAME
+# Checks if user has "Ban Members" permission OR the configured blacklist manager role
 # If neither condition is met, the command won't execute and shows an error
 ```
+
+---

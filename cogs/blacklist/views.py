@@ -1,5 +1,3 @@
-from datetime import timezone
-
 import discord
 
 from core import Colors, timestamp_to_discord
@@ -26,16 +24,18 @@ class ConfirmRemoveView(discord.ui.View):
     #Confirm button, if yes, marks as confirmed and returns
     @discord.ui.button(label="Yes, remove", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
         self.confirmed = True
-        #ends the view
+        await interaction.response.send_modal(
+            BlacklistRemoveModal(self.user_discord_id, self.user_discord_label, self.bot)
+        )
         self.stop()
 
     #Cancel button, if no, cancels the action and disables the buttons
     #no need to set confirmed = false since its already set on init
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(content="Removal cancelled.", view=None)
+        await interaction.response.defer()
+        await interaction.delete_original_response()
         self.stop()
 
     #timeout function, disables the buttons after specified time (30 seconds in this case)

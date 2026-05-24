@@ -34,3 +34,34 @@ async def get_user_by_discord_id(bot: commands.Bot, discord_id: str) -> str:
         return f"{user} (`{discord_id}`)"
     except (discord.NotFound, discord.HTTPException, ValueError):
         return f"Unknown user (`{discord_id}`)"
+
+
+#Extracts only numbers from a guild/server ID input and returns it as int
+def format_guild_id(raw_value: str) -> int | None:
+    """Extract and validate a guild ID from raw text input."""
+    digits_only = "".join(ch for ch in raw_value if ch.isdigit())
+    return int(digits_only) if digits_only else None
+
+
+#Checks if a guild is the main guild configured in hosting
+def is_main_guild(guild_id: int, main_guild_id: int) -> bool:
+    """Return True when the provided guild is the configured main guild."""
+    return guild_id == main_guild_id
+
+
+#Classifies a guild so commands can decide which UI or features to expose
+async def get_guild_type(guild_id: int, main_guild_id: int) -> str:
+    """Classify guild as main, observer, or unknown."""
+    #see if its the main guild, if it is, return main
+    if is_main_guild(guild_id, main_guild_id):
+        return "main"
+
+    from db.allowed_guilds import allowed_guild_get
+
+    #search database to see if the guild is on allowed observer database and enabled
+    #if it is, return observer, if not, return unknown
+    record = await allowed_guild_get(guild_id)
+    if record and record.get("enabled") and record.get("server_type") == "observer":
+        return "observer"
+
+    return "unknown"

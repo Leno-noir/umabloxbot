@@ -1,269 +1,168 @@
-# Commands Reference
+# Commands
 
-Complete list of all slash commands available in the bot.
+Command tracking for the bot.
 
-**Total Commands:** 12  
-**Public Commands:** 7  
-**Restricted Commands:** 5
+## Command Reference
 
----
+The bot does not shows the same commands in every server.
+Commands that require discord ID can also work via mention (@User)
 
-## 📋 Blacklist Cog
+### Guild Visibility
 
-Commands for managing the shared blacklist across servers.
+- Main guild only: visible only in `Uma Portal`
+- Observer guilds only: visible only in enabled allowed observer guilds (any server of umablox, game or community)
+- Promotion guild only: visible only in `Umablox Universe` (WIP)
+- Unknown guilds: Guilds that are not part of the ecosystem (if a random server adds the bot, they will not be able to use any commands)
 
-### `/blacklist-add`
-**Type:** Restricted (Manager only)  
-**Description:** Add a user to the shared blacklist
+- Shared settings: `/settings` exists in both `Uma Portal` and enabled observer guilds, but the panel  changes by guild type (uma portal gets an general settings for example, observer guild get only a channel configuration option)
 
-**Parameters:**
-- `discord_id` (text) — The Discord user ID to blacklist
 
-**Permissions Required:**
-- Ban Members permission OR UmaBot Blacklist Manager role
+### Blacklist Commands
 
-**Validation:**
-- Discord ID is automatically validated and normalized
+All blacklist commands are main-guild-only (Uma Portal).
 
-**Flow:**
-1. User runs `/blacklist-add @user/@discordID`
-2. Opens BlacklistAddModal form
-3. User enters: Roblox ID, Roblox username, reason, evidence (optional)
-4. User is added to blacklist
-5. Alert sent to log channel
+Type: Restricted -> Only admins on main guild (Uma Portal) can use the command
+Type: Public -> Every person on that server can use that command with no restrictions
 
----
+#### `/blacklist-add`
 
-### `/blacklist-remove`
-**Type:** Restricted (Manager only)  
-**Description:** Remove a user from the blacklist
+- Type: restricted
+- Description: add a user to the blacklist
+- Parameter: `discord_id` - Discord user ID
+- Permissions required: `Ban Members`, or the configured blacklist manager role from main guild settings
+- Flow:
+	1. validate the Discord ID
+	2. open the add to blacklist modal
+	3. collect Roblox info, reason, and optional evidence
+	4. save to database
+	5. notify the main guild blacklist logs channel
 
-**Parameters:**
-- `discord_id` (text) — The Discord user ID to remove
+#### `/blacklist-remove`
 
-**Permissions Required:**
-- Ban Members permission OR UmaBot Blacklist Manager role
+- Type: restricted
+- Description: remove a user from the blacklist
+- Parameter: `discord_id` - Discord user ID
+- Permissions required: `Ban Members`, or the configured blacklist manager role from main guild settings
+- Flow:
+	1. validate the Discord ID
+	2. confirm removal
+	3. open the removal modal
+	4. save removal reason
+	5. notify the main guild blacklist logs channel
 
-**Validation:**
-- Discord ID is automatically validated and normalized
-- User must already be on the blacklist
+- Note: It does not totally remove the person from database, instead it makes the ban unactive, making so it saves the past entries from that blacklisted person
 
-**Flow:**
-1. User runs `/blacklist-remove @user/@discordID`
-2. Confirmation view appears (Yes/No buttons)
-3. If confirmed, opens BlacklistRemoveModal
-4. User enters removal reason
-5. User is removed from blacklist
-6. Alert sent to log channel
+#### `/blacklist-info`
 
----
+- Type: public inside main guild (Uma Portal)
+- Description: look up the current blacklist status for a user
+- Parameter: `discord_id` - Discord user ID
+- Output:
+	- current blacklist status
+	- Roblox info
+	- reason
+	- evidence when available
+	- date added
+	- recent past entries
 
-### `/blacklist-info`
-**Type:** Public  
-**Description:** Look up a user's blacklist status
+#### `/blacklist-list`
 
-**Parameters:**
-- `discord_id` (text) — The Discord user ID to look up
+- Type: public inside main guild (Uma Portal)
+- Description: list active blacklist entries
+- Parameter: `page` - optional page number (if you want to load at page 2)
 
-**Output:**
-- Shows current ban status
-- If banned: reason, Roblox account, added by, date
-- Past entries (last 5 if any)
-- Link to Roblox profile (button)
+#### `/blacklist-history`
 
-**Validation:**
-- Discord ID is automatically validated and normalized
+- Type: restricted
+- Description: show the full blacklist history for a user
+- Parameter: `discord_id` - Discord user ID
+- Permissions required: `Ban Members`, or the configured blacklist manager role from main guild settings
 
----
+#### `/blacklist-log`
 
-### `/blacklist-history`
-**Type:** Restricted (Manager only)  
-**Description:** Show the full blacklist history for a user
+- Type: restricted
+- Description: show the global blacklist event log (every add/remove actions for tracking)
+- Parameter: `page` - optional page number
+- Permissions required: `Ban Members`, or the configured blacklist manager role from main guild settings
 
-**Parameters:**
-- `discord_id` (text) — The Discord user ID to look up
+#### `/blacklist-panel`
 
-**Permissions Required:**
-- Ban Members permission OR UmaBot Blacklist Manager role
+- Type: public inside main guild
+- Description: send the blacklist panel (can navigate between pages on this panel)
 
-**Output:**
-- Shows ALL blacklist records for the user
-- Distinguishes between active bans and removal events
-- Complete details for each event
+### Settings Command
 
-**Validation:**
-- Discord ID is automatically validated and normalized
+#### `/settings`
 
----
+- Type: administrator only
+- Description: open the settings panel for the current guild type
 
-### `/blacklist-list`
-**Type:** Public  
-**Description:** List all currently banned users
+##### In Main Guild
 
-**Parameters:**
-- `page` (integer, optional) — Page number (10 users per page) [default: 1]
+The full admin panel is shown.
 
-**Output:**
-- Paginated list of all currently banned users
-- Shows: Roblox username, Discord mention, reason, date added
+In main guild, they are separated by 2 options
 
----
+Main guild configs:
 
-### `/blacklist-log`
-**Type:** Restricted (Manager only)  
-**Description:** Show the full blacklist event log
+- configure blacklist settings
+- configure promotion settings
+- configure feedback settings
+- configure networking settings
 
-**Parameters:**
-- `page` (integer, optional) — Page number (10 events per page) [default: 1]
+Allowed server configs:
 
-**Permissions Required:**
-- Ban Members permission OR UmaBot Blacklist Manager role
+- manage allowed observer servers (which servers are allowed to be an 'Observer Server')
 
-**Output:**
-- Paginated global event log
-- Shows all ban and removal actions across all servers
-- Includes timestamps and user information
+##### In Observer Guilds
 
----
+A reduced panel is shown.
 
-### `/blacklist-panel`
-**Type:** Public  
-**Description:** Send the blacklist panel with navigation buttons
+Features:
 
-**Parameters:** None
+- configure `blacklisted_users_join_alert_channel` (configures which channel the alert for blacklisted user joining is)
 
-**Output:**
-- Sends an embed with navigation buttons
-- Quick access to blacklist commands
-- Interactive UI for users
+##### In Unknown Guilds
 
----
+Access is denied.
 
-## ⚙️ Settings Cog
+### Placeholder Commands
 
-Bot configuration and server settings.
+These still exist as placeholders for future functions:
 
-### `/settings`
-**Type:** Restricted (Server Admin only)  
-**Description:** View and edit bot settings for this server
-
-**Permissions Required:**
-- Administrator permission
-
-**Features:**
-- Configure blacklist log channel
-- Configure promotion settings
-- Configure feedback settings
-- Configure networking settings
-
-**Sections:**
-- Blacklist Settings
-- Promotion Settings
-- Feedback Settings
-- Networking Settings
-
----
-
-## 🎉 Scaffold Commands
-
-These are placeholder commands created during the scaffolding phase. They will be replaced with actual features.
-
-### `/funsies-ping`
-**Type:** Public  
-**Description:** Temporary command used while scaffolding the funsies cog
-
----
-
-### `/feedback-ping`
-**Type:** Public  
-**Description:** Temporary command used while scaffolding the feedback cog
-
----
-
-### `/networking-ping`
-**Type:** Public  
-**Description:** Temporary command used while scaffolding the networking cog
-
----
-
-### `/promotion-ping`
-**Type:** Public  
-**Description:** Temporary command used while scaffolding the promotion cog
-
----
-
-## 📊 Command Statistics
-
-| Category | Count |
-|----------|-------|
-| Blacklist Commands | 7 |
-| Settings Commands | 1 |
-| Scaffold Commands | 4 |
-| **Total** | **12** |
-
-| Permission Level | Count |
-|------------------|-------|
-| Public | 7 |
-| Restricted (Manager) | 4 |
-| Restricted (Admin) | 1 |
-| **Total** | **12** |
-
----
-
-## 🔐 Permission Levels
-
-### Public Commands
-Anyone can use these commands:
-- `/blacklist-info`
-- `/blacklist-list`
-- `/blacklist-panel`
 - `/funsies-ping`
 - `/feedback-ping`
 - `/networking-ping`
 - `/promotion-ping`
 
-### Manager-Only Commands
-Requires Ban Members permission OR UmaBot Blacklist Manager role:
+### Permission Model
+
+#### Public
+
+- `/blacklist-info`
+- `/blacklist-list`
+- `/blacklist-panel`
+- placeholder ping commands
+
+#### Restricted Blacklist Management
+
 - `/blacklist-add`
 - `/blacklist-remove`
 - `/blacklist-history`
 - `/blacklist-log`
 
-### Admin-Only Commands
-Requires Administrator permission:
+Requires:
+
+- `Ban Members`
+- or configured blacklist manager role
+
+#### Administrator Only
+
 - `/settings`
 
----
+### Notes
 
-## 🔄 Command Flow Diagram
-
-```
-User Input (/command)
-    ↓
-@app_commands.command() decorator
-    ↓
-Permission Check (@is_manager, @default_permissions)
-    ↓
-Parameter Validation (@validate_discord_id)
-    ↓
-Command Function
-    ↓
-Database Operation
-    ↓
-Response (Embed, Modal, or View)
-```
-
----
-
-## 📝 Notes
-
-- All commands with Discord IDs support multiple input formats:
-  - Raw ID: `123456789`
-  - Discord mention: `<@123456789>`
-  - Mention format: `@username`
-
-- All ephemeral responses are only visible to the command user
-
-- Pagination defaults to page 1 if not specified
-
-- More commands are planned for feedback, promotion, and networking cogs
+- command visibility is synced by guild type (some need to be configured manually in server configs WIP)
+- blacklist commands are blocked both by visibility and runtime checks
+- observer guilds do not manage the blacklist
+- observer guilds only receive join alerts for blacklisted users

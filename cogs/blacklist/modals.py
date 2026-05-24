@@ -1,11 +1,11 @@
 import discord
 from discord.ext import commands
 
-from core import Colors
 from db import bl_add, bl_is_banned, bl_remove
 from .utils import (
+    build_blacklist_added_embed,
+    build_blacklist_removed_embed,
     send_blacklist_action_notification,
-    send_blacklist_log_broadcast,
 )
 
 # Interactive forms for some functions
@@ -63,43 +63,17 @@ class BlacklistAddModal(discord.ui.Modal, title="Add user to blacklist"):
             evidence=self.evidence.value or None,
         )
 
-        # creates the embed message to send on log channel
-        embed = discord.Embed(
-            title="User added to blacklist",
-            color=Colors.RED,
+        # builds the add notification embed for logs and feedback
+        embed = build_blacklist_added_embed(
+            discord_user_label=self.user_discord_label,
+            roblox_user=self.roblox_user.value,
+            roblox_id=self.roblox_id.value,
+            reason=self.reason.value,
+            added_by=str(interaction.user),
             timestamp=savetodatabase["added_at"],
+            guild_name=interaction.guild.name,
+            evidence=self.evidence.value or None,
         )
-        # rest of the fields of the embed
-        embed.add_field(
-            name="Discord user",
-            value=self.user_discord_label,
-            inline=False
-        )
-        embed.add_field(
-            name="Roblox",
-            value=f"{self.roblox_user.value} (`{self.roblox_id.value}`)",
-            inline=False,
-        )
-        embed.add_field(
-            name="Reason",
-            value=self.reason.value,
-            inline=False
-        )
-        
-        if self.evidence.value:
-            embed.add_field(
-                name="Evidence",
-                value=self.evidence.value,
-                inline=False
-        )
-            
-        embed.add_field(
-            name="Added by",
-            value=str(interaction.user),
-            inline=False
-        )
-        
-        embed.set_footer(text=f"Server: {interaction.guild.name}")
 
         await send_blacklist_action_notification(
             self.bot,
@@ -146,28 +120,13 @@ class BlacklistRemoveModal(discord.ui.Modal, title="Remove user from blacklist")
             )
             return
 
-        # creates the embed message to send on log channel
-        embed = discord.Embed(
-            title="User removed from blacklist",
-            color=Colors.GREEN,
-            timestamp=discord.utils.utcnow(),
+        # builds the remove notification embed for logs and feedback
+        embed = build_blacklist_removed_embed(
+            discord_user_label=self.user_discord_label,
+            reason=self.reason.value,
+            removed_by=str(interaction.user),
+            guild_name=interaction.guild.name,
         )
-        embed.add_field(
-            name="Discord user",
-            value=self.user_discord_label,
-            inline=False
-        )
-        embed.add_field(
-            name="Reason for removal",
-            value=self.reason.value,
-            inline=False
-        )
-        embed.add_field(
-            name="Removed by",
-            value=str(interaction.user),
-            inline=False
-        )
-        embed.set_footer(text=f"Server: {interaction.guild.name}")
 
         # sends the embed message to the log channel
         await send_blacklist_action_notification(
@@ -175,5 +134,5 @@ class BlacklistRemoveModal(discord.ui.Modal, title="Remove user from blacklist")
             interaction,
             embed,
             self.user_discord_label,
-            "added"
+            "removed"
         )

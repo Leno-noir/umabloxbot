@@ -8,6 +8,7 @@ For complete setup and usage instructions, see the [full documentation](docs/rea
 
 **Quick Links:**
 - [Setup Guide](docs/readme.md) - Installation and configuration
+- [Project Overview](docs/visao-geral.md) - Human-friendly summary of the bot
 - [Commands Reference](docs/commands.md) - All available commands
 - [Concepts Guide](docs/thingstoknowabout.md) - Discord.py and bot concepts
 - [Environment Template](docs/.env.example) - Configuration template

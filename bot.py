@@ -4,10 +4,14 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from core import Colors, DISCORD_TOKEN, MAIN_GUILD_ID
+from core import DISCORD_TOKEN, MAIN_GUILD_ID, sync_network_commands
+from db import allowed_guild_is_enabled
 from db.blacklist import bl_get
 from db.connection import connect
-from db.guild_configs import guild_get_blacklist_logs_channel
+from db.guild_configs import (
+    guild_get_blacklisted_users_join_alert_channel,
+)
+from cogs.blacklist.utils import build_blacklist_join_alert_embed
 
 #configure bot intents (permissions for reading guild events)
 intents = discord.Intents.default()
@@ -26,6 +30,9 @@ COGS = [
     "cogs.funsies",
 ]
 
+#expose sync helper so settings views can refresh command visibility after allowlist changes
+bot.sync_network_commands = lambda: sync_network_commands(bot, MAIN_GUILD_ID)
+
 #event triggered when the bot successfully connects and is ready
 @bot.event
 async def on_ready():
@@ -41,16 +48,9 @@ async def on_ready():
     for guild in bot.guilds:
         print(f"- {guild.name} ({guild.id})")
 
-    #sync slash commands to the main guild
+    #sync slash commands according to guild type
     try:
-        guild = discord.Object(id=MAIN_GUILD_ID)
-        
-        #clear all old commands to force a clean resync
-        bot.tree.clear_commands(guild=guild)
-        
-        bot.tree.copy_global_to(guild=guild)
-        synced = await bot.tree.sync(guild=guild)
-        print(f"Slash commands synced: {len(synced)}")
+        await bot.sync_network_commands()
     except Exception as exc:
         print(f"Error syncing commands: {exc}")
 
@@ -60,37 +60,35 @@ async def on_ready():
 #event triggered when a user joins any server the bot is in
 @bot.event
 async def on_member_join(member: discord.Member):
-    """Alert the log channel if a blacklisted user joins any server."""
-    
+    """Send join alerts only for enabled observer guilds with a local alert channel."""
+
+    #the main guild does not need observer join alerts
+    if member.guild.id == MAIN_GUILD_ID:
+        return
+
+    #ignore servers that are not enabled observer guilds
+    if not await allowed_guild_is_enabled(member.guild.id):
+        return
+
     #check if the user is on the blacklist
     record = await bl_get(str(member.id))
     if not record:
         return
 
-    
-    #get the log channel to send alerts (from database configuration)
-    channel_id = await guild_get_blacklist_logs_channel(MAIN_GUILD_ID)
+    #get the local observer alert channel for this guild
+    channel_id = await guild_get_blacklisted_users_join_alert_channel(member.guild.id)
     if not channel_id:
         return
 
-    
-    #fetch the channel object
+    #fetch the configured channel from the observer guild
     channel = bot.get_channel(channel_id)
     if not channel:
         return
 
     #create embed with blacklist join alert
-    embed = discord.Embed(
-        title="Blacklisted user joined a server",
-        description=f"{member.mention} (`{member.id}`) is on the blacklist.",
-        color=Colors.YELLOW,
-        timestamp=discord.utils.utcnow(),
-    )
-    embed.add_field(name="Roblox", value=f"{record.get('roblox_user', '?')} (`{record['roblox_id']}`)", inline=False)
-    embed.add_field(name="Reason", value=record["reason"], inline=False)
-    embed.add_field(name="Server", value=member.guild.name, inline=False)
+    embed = build_blacklist_join_alert_embed(member, record)
 
-    #send the alert to the log channel
+    #send the alert to the local observer alert channel
     await channel.send(embed=embed)
 
 

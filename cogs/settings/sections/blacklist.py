@@ -6,15 +6,15 @@ from .base import ChannelSelectView, RoleSelectView, Section
 class BlacklistSection(Section):
     label = "Blacklist"
     emoji = "Blacklist"
-    db_keys = ["blacklist_logs_channel", "blacklist_role"]
+    db_keys = ["blacklist_logs_channel", "blacklist_manager_role", "blacklist_manager_role_id"]
 
     @staticmethod
     async def get_fields(settings: dict) -> list[tuple[str, str]]:
         log_ch = settings.get("blacklist_logs_channel")
-        bl_role = settings.get("blacklist_role", "Not set")
+        bl_role = settings.get("blacklist_manager_role", "Not set")
         return [
             ("Blacklist logs channel", f"<#{log_ch}>" if log_ch else "Not set"),
-            ("Blacklist role", bl_role),
+            ("Blacklist manager role", bl_role),
         ]
 
     @staticmethod
@@ -32,7 +32,7 @@ class BlacklistSection(Section):
         async def set_role(interaction: discord.Interaction):
             await interaction.response.send_message(
                 "Choose the blacklist manager role:",
-                view=RoleSelectView("Set blacklist role", "blacklist_role", guild_id, parent_view),
+                view=RoleSelectView("Set blacklist manager role", "blacklist_manager_role", guild_id, parent_view),
                 ephemeral=True,
             )
 
