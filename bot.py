@@ -1,59 +1,133 @@
 import asyncio
+import logging
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from core import DISCORD_TOKEN, MAIN_GUILD_ID, sync_network_commands
-from db import allowed_guild_is_enabled
-from db.blacklist import bl_get
-from db.connection import connect
-from db.guild_configs import (
-    guild_get_blacklisted_users_join_alert_channel,
+from cogs.feedback.views import FeedbackPanelView
+from core import (
+    DISCORD_TOKEN,
+    MAIN_GUILD_ID,
+    sync_network_commands,
+    validate_runtime_config,
 )
-from cogs.blacklist.utils import build_blacklist_join_alert_embed
-from cogs.blacklist.views import BlacklistBanPromptView
+from core.config import ROTECTOR_ENABLED
+from db import allowed_guild_is_enabled
+from db.indexes import ensure_core_indexes
+from db.blacklist import bl_get
+from db.connection import connect, disconnect
+from db.feedback import feedback_get_games
+from db.guild_configs import (
+    guild_get_blacklist_panel_message,
+    guild_get_blacklisted_users_join_alert_channel,
+    guild_get_feedback_channel,
+    guild_get_feedback_panel_message,
+)
+from cogs.blacklist.views import (
+    BlacklistBanPromptView,
+    BlacklistPanelView,
+    build_blacklist_join_alert_embed,
+)
+
+logger = logging.getLogger(__name__)
 
 #configure bot intents (permissions for reading guild events)
 intents = discord.Intents.default()
 intents.members = True
-
-#create the bot instance with command prefix and configured intents
-bot = commands.Bot(command_prefix="!", intents=intents)
 
 #list of all cogs (modules) to load on startup
 COGS = [
     "cogs.blacklist",
     "cogs.settings",
     "cogs.feedback",
-    "cogs.promotion",
     "cogs.networking",
     "cogs.funsies",
 ]
 
+if ROTECTOR_ENABLED:
+    COGS.append("cogs.rotector")
+
+
+class UmaPortalBot(commands.Bot):
+    """Bot lifecycle that performs startup work exactly once per process."""
+
+    def __init__(self):
+        super().__init__(command_prefix="!", intents=intents)
+        self.commands_synced = False
+        self.panels_rehydrated = False
+
+    async def setup_hook(self):
+        validate_runtime_config()
+        await connect()
+        await ensure_core_indexes()
+        for extension in COGS:
+            await self.load_extension(extension)
+            logger.info("Loaded extension: %s", extension)
+
+    async def close(self):
+        await disconnect()
+        await super().close()
+
+
+#create the bot instance with command prefix and configured intents
+bot = UmaPortalBot()
+
 #expose sync helper so settings views can refresh command visibility after allowlist changes
-bot.sync_network_commands = lambda: sync_network_commands(bot, MAIN_GUILD_ID)
+bot.sync_network_commands = lambda: sync_network_commands(
+    bot,
+    MAIN_GUILD_ID,
+)
 
 #event triggered when the bot successfully connects and is ready
 @bot.event
 async def on_ready():
-    #print bot connection info
-    print(f"Bot online as: {bot.user} (ID: {bot.user.id})")
-    print(f"Connected servers: {len(bot.guilds)}")
+    logger.info("Bot online as %s (%s), connected to %s servers", bot.user, bot.user.id, len(bot.guilds))
 
-    #list all registered slash commands
-    for cmd in bot.tree.get_commands():
-        print(f"[tree] {cmd.name}")
+    if not bot.commands_synced:
+        try:
+            await bot.sync_network_commands()
+            bot.commands_synced = True
+        except Exception:
+            logger.exception("Initial command synchronization failed")
+            return
 
-    #list all servers the bot is in
-    for guild in bot.guilds:
-        print(f"- {guild.name} ({guild.id})")
+    if bot.panels_rehydrated:
+        return
+    bot.panels_rehydrated = True
 
-    #sync slash commands according to guild type
-    try:
-        await bot.sync_network_commands()
-    except Exception as exc:
-        print(f"Error syncing commands: {exc}")
+    logger.info("Rehydrating panels for main guild %s", MAIN_GUILD_ID)
+
+    # Recupera IDs salvos
+    blacklistChannel, blacklistPanelMessage = await guild_get_blacklist_panel_message(MAIN_GUILD_ID)
+    feedbackChannel, feedbackPanelMessage = await guild_get_feedback_panel_message(MAIN_GUILD_ID)
+
+    # Busca canais
+    bChannel = bot.get_channel(blacklistChannel) if blacklistChannel else None
+    fChannel = bot.get_channel(feedbackChannel) if feedbackChannel else None
+
+    # --- Blacklist Panel ---
+    if bChannel and blacklistPanelMessage:
+        try:
+            bmessage = await bChannel.fetch_message(blacklistPanelMessage)
+            view = BlacklistPanelView(bot)
+            await view._rebuild_layout()
+            await bmessage.edit(view=view)
+            logger.info("Blacklist panel rehydrated")
+        except Exception:
+            logger.exception("Failed to rehydrate blacklist panel")
+
+    # --- Feedback Panel ---
+    if fChannel and feedbackPanelMessage:
+        try:
+            fmessage = await fChannel.fetch_message(feedbackPanelMessage)
+            feedbackgames = await feedback_get_games(MAIN_GUILD_ID)  # precisa ser async
+            view = FeedbackPanelView(feedbackgames, bot, MAIN_GUILD_ID)
+            await fmessage.edit(view=view)
+            logger.info("Feedback panel rehydrated")
+        except Exception:
+            logger.exception("Failed to rehydrate feedback panel")
+
 
 
 
@@ -88,7 +162,7 @@ async def on_member_join(member: discord.Member):
 
     #create embed with blacklist join alert
     embed = build_blacklist_join_alert_embed(member, record)
-    view = BlacklistBanPromptView(member.id, record["reason"])
+    view = BlacklistBanPromptView(member.id, record["current_reason"])
 
     #send the alert to the local observer alert channel
     await channel.send(embed=embed, view=view)
@@ -100,54 +174,55 @@ async def on_member_join(member: discord.Member):
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     #log the error to console
-    print(f"App command error: {type(error).__name__}: {error}")
+    original_error = getattr(error, "original", None)
+    logger.error(
+        "App command error: %s: %s",
+        type(error).__name__,
+        error,
+        exc_info=original_error if isinstance(original_error, BaseException) else None,
+    )
 
     #handle permission check failures (from @is_manager decorator)
     if isinstance(error, app_commands.CheckFailure):
-        if interaction.response.is_done():
-            await interaction.followup.send("You do not have permission to use this command.", ephemeral=True)
-        else:
-            await interaction.response.send_message(
-                "You do not have permission to use this command.",
-                ephemeral=True,
-            )
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send("You do not have permission to use this command.", ephemeral=True)
+            else:
+                await interaction.response.send_message(
+                    "You do not have permission to use this command.",
+                    ephemeral=True,
+                )
+        except discord.HTTPException:
+            pass
         return
 
     #handle other command errors with generic error message
-    if interaction.response.is_done():
-        await interaction.followup.send(
-            "Something went wrong while running this command.",
-            ephemeral=True,
-        )
-    else:
-        await interaction.response.send_message(
-            "Something went wrong while running this command.",
-            ephemeral=True,
-        )
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                "Something went wrong while running this command.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message(
+                "Something went wrong while running this command.",
+                ephemeral=True,
+            )
+    except discord.HTTPException:
+        pass
 
 
 
 #main async function that initializes and starts the bot
 async def main():
     async with bot:
-        #connect to the database
-        await connect()
-        
-        
-        #load all cogs
-        for extension in COGS:
-            try:
-                await bot.load_extension(extension)
-                print(f"Loaded extension: {extension}")
-            except Exception as exc:
-                print(f"Failed to load extension {extension}: {exc}")
-                raise
-            
-            
-        #start the bot with the token from config 
         await bot.start(DISCORD_TOKEN)
 
 
 #entry point for the script
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     asyncio.run(main())

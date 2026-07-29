@@ -3,6 +3,8 @@ from __future__ import annotations
 import discord
 
 from db import guild_get_settings, guild_save_settings
+from db.guild_configs import guild_toggle_rotector_enabled
+from .sections.base import AdminSettingsView
 
 #this is the configurations panel shown in
 #observer guilds that have been allowlisted by the main guild admin,
@@ -38,9 +40,38 @@ class ObserverChannelSelect(discord.ui.ChannelSelect):
         await self.parent_view.refresh(interaction)
 
 
+class RotectorChannelSelect(discord.ui.ChannelSelect):
+    """Channel picker used by observer guilds to define Rotector alerts."""
+
+    def __init__(self, guild_id: int, parent_view):
+        super().__init__(
+            placeholder="Choose the Rotector alert channel...",
+            min_values=1,
+            max_values=1,
+            channel_types=[
+                discord.ChannelType.text,
+                discord.ChannelType.news,
+            ],
+        )
+        self.guild_id = guild_id
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        channel = self.values[0]
+        await guild_save_settings(
+            self.guild_id,
+            {"rotector_alert_channel": channel.id},
+        )
+        await interaction.response.send_message(
+            f"Rotector alert channel set to {channel.mention}.",
+            ephemeral=True,
+        )
+        await self.parent_view.refresh(interaction)
+
+
 #observer server version of the settings panel
 #only shows the option to set the channel for blacklist join alerts, and no other settings
-class ObserverSettingsView(discord.ui.View):
+class ObserverSettingsView(AdminSettingsView):
     """Reduced settings panel shown in allowed observer guilds only."""
 
     def __init__(self, guild_id: int):
@@ -48,20 +79,50 @@ class ObserverSettingsView(discord.ui.View):
         self.guild_id = guild_id
         self._message: discord.Message | None = None
         self.add_item(ObserverChannelSelect(guild_id, self))
+        self.add_item(RotectorChannelSelect(guild_id, self))
+
+    @discord.ui.button(
+        label="Toggle Rotector",
+        style=discord.ButtonStyle.secondary,
+        row=2,
+    )
+    async def toggle_rotector(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ):
+        new_value = await guild_toggle_rotector_enabled(self.guild_id)
+        await interaction.response.send_message(
+            f"Rotector alerts are now {'enabled' if new_value else 'disabled'}.",
+            ephemeral=True,
+        )
+        await self.refresh(interaction)
 
     async def build_embed(self, guild: discord.Guild) -> discord.Embed:
         """Build the observer settings embed with the local alert channel."""
         settings = await guild_get_settings(guild.id) or {}
         channel_id = settings.get("blacklisted_users_join_alert_channel")
+        rotector_enabled = bool(settings.get("rotector_enabled", False))
+        rotector_channel_id = settings.get("rotector_alert_channel")
 
         embed = discord.Embed(
             title=f"Observer Settings - {guild.name}",
-            description="Configure local blacklist join alerts for this server.",
+            description="Configure alerts for this server.",
             color=0x5865F2,
         )
         embed.add_field(
             name="Blacklisted users join alert channel",
             value=f"<#{channel_id}>" if channel_id else "Not set",
+            inline=False,
+        )
+        embed.add_field(
+            name="Rotector alerts",
+            value="Enabled" if rotector_enabled else "Disabled",
+            inline=False,
+        )
+        embed.add_field(
+            name="Rotector alert channel",
+            value=f"<#{rotector_channel_id}>" if rotector_channel_id else "Not set",
             inline=False,
         )
         embed.set_footer(text="Only administrators can change these settings.")

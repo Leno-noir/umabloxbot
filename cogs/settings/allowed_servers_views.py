@@ -7,6 +7,7 @@ from db import (
     allowed_guild_add, allowed_guild_exists, allowed_guild_list,
     allowed_guild_remove, allowed_guild_set_enabled,
 )
+from .sections.base import AdminSettingsView
 
 
 async def sync_commands_after_allowlist_change(interaction: discord.Interaction):
@@ -154,7 +155,7 @@ class ToggleAllowedServerModal(discord.ui.Modal, title="Toggle allowed server"):
         await self.parent_view.refresh(interaction)
 
 
-class AllowedServersView(discord.ui.View):
+class AllowedServersView(AdminSettingsView):
     """Paginated allowlist management panel shown only in the main guild."""
 
     def __init__(self):

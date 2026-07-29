@@ -50,7 +50,10 @@ def is_main_guild(guild_id: int, main_guild_id: int) -> bool:
 
 
 #Classifies a guild so commands can decide which UI or features to expose
-async def get_guild_type(guild_id: int, main_guild_id: int) -> str:
+async def get_guild_type(
+    guild_id: int,
+    main_guild_id: int,
+) -> str:
     """Classify guild as main, observer, or unknown."""
     #see if its the main guild, if it is, return main
     if is_main_guild(guild_id, main_guild_id):

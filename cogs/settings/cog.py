@@ -15,8 +15,13 @@ class Settings(commands.Cog):
     #routes /settings to the correct panel depending on the guild type
     @app_commands.command(name="settings", description="View and edit bot settings for this server")
     @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.guild_only()
     async def settings(self, interaction: discord.Interaction):
-        guild_type = await get_guild_type(interaction.guild_id, MAIN_GUILD_ID)
+        guild_type = await get_guild_type(
+            interaction.guild_id,
+            MAIN_GUILD_ID,
+        )
 
         #main guild gets the full administration panel
         if guild_type == "main":

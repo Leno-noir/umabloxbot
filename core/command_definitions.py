@@ -1,19 +1,13 @@
 # Defines which commands belong to which feature/category and which guild types can access them.
 
+from .config import IS_DEVELOPMENT
+
 
 # Command groups by feature/cog
 COMMAND_GROUPS = {
     "blacklist": {
-        "commands": [
-            "blacklist-add",
-            "blacklist-remove",
-            "blacklist-info",
-            "blacklist-list",
-            "blacklist-history",
-            "blacklist-log",
-            "blacklist-panel",
-        ],
-        "manager_only": ["blacklist-add", "blacklist-remove", "blacklist-history", "blacklist-log", "blacklist-panel"],
+        "commands": ["blacklist"],
+        "manager_only": [],
     },
     "settings": {
         "commands": ["settings"],
@@ -23,16 +17,23 @@ COMMAND_GROUPS = {
         "commands": ["feedback"],
         "manager_only": [],
     },
-    "promotion": {
-        "commands": ["promotion"],
-        "manager_only": [],
-    },
     "networking": {
         "commands": ["networking"],
         "manager_only": [],
     },
     "funsies": {
-        "commands": ["fun"],
+        "commands": [
+            "quote",
+            "fact",
+            "gacha",
+            "gacha-info",
+            "uma-list",
+            "uma-info",
+            "uma-inventory",
+            "choose-your-race-uma",
+            "race",
+            "leaderboard",
+        ],
         "manager_only": [],
     },
 }
@@ -40,18 +41,23 @@ COMMAND_GROUPS = {
 # Guild type command access: which features are synced to each guild type
 GUILD_TYPE_COMMANDS = {
     "main": {
-        # Main guild receives everything
-        "features": list(COMMAND_GROUPS.keys()),
+        "features": ["blacklist", "settings", "feedback", "networking", "funsies"],
     },
     "observer": {
-        # Observer guilds only get settings (and eventually observer-specific commands)
-        "features": ["settings"],
+        # Observer guilds get settings plus the light funsies commands.
+        "features": ["settings", "funsies"],
     },
-    "promotion": {
-        # Promotion guilds only get promotion commands (when implemented)
-        "features": ["promotion"],
+    "unknown": {
+        "features": ["funsies"],
     },
 }
+
+if IS_DEVELOPMENT:
+    COMMAND_GROUPS["rotector_test"] = {
+        "commands": ["rotector-test-view"],
+        "manager_only": [],
+    }
+    GUILD_TYPE_COMMANDS["main"]["features"].append("rotector_test")
 
 
 def get_commands_for_guild_type(guild_type: str) -> list[str]:

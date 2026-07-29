@@ -4,7 +4,7 @@ Discord bot for the Umablox community.
 
 ## What This Project Is
 
-UMABLOX Bot is a Discord bot for a multi-server network that keeps moderation, notifications, helps on promoting, feedback, devs networking and server-specific configuration in one place.
+UMABLOX Bot is a Discord bot for a multi-server network that keeps moderation, notifications, feedback, dev networking, and server-specific configuration in one place.
 
 It is organized around 3 server roles:
 
@@ -16,9 +16,6 @@ It is organized around 3 server roles:
   - has the central `/settings` panel
   - manages allowed observer servers
 
-- **Umablox Universe**
-  - main promotion server
-  - used for features like promotion and fun commands
 
 - **Other connected servers**
   - can participate as observer servers when allowed by the main guild
@@ -26,7 +23,8 @@ It is organized around 3 server roles:
   - can use fun commands
 
 The bot uses MongoDB as database.
-the bot uses WIP as hosting
+
+Supported Python versions: **3.11 and 3.12**.
 
 ## Core Features
 
@@ -34,7 +32,6 @@ the bot uses WIP as hosting
 - Observer server allowlist and enable/disable control
 - Per-server settings stored in MongoDB
 - Join alerts for blacklisted users in observer servers
-- Cogs for blacklist, settings, feedback, promotion, networking, and fun features
 
 ## How the Network Works
 
@@ -42,8 +39,8 @@ The bot treats the main guild as the control center.
 
 - The main guild shows the full blacklist management experience.
 - Allowed observer guilds receive a reduced `/settings` panel.
-- Unknown guilds do not any access.
-- Blacklist read commands are public in the main guild, while write commands are restricted. (some exceptions)
+- Unknown guilds do not get access.
+- Blacklist read commands are public in the main guild, while write commands are restricted.
 - When a blacklisted user joins an enabled observer server, that server can receive a notification in its configured alert channel.
 
 This means moderation data is shared across the network, but local notification channels remain configurable per guild. (every server configures their own channel for it)
@@ -66,7 +63,6 @@ This means moderation data is shared across the network, but local notification 
   - allowlist data for connected observer servers
 
 - `cogs/`
-  - feature modules for blacklist, settings, feedback, promotion, networking, and funsies
 
 ## Server Roles
 
@@ -82,19 +78,11 @@ It is responsible for:
 - feedback function
 - allowlist management for observer servers
 - full settings administration
-
-### Umablox Universe
-
-This is the guild for promotion functions
-
-It has:
-
- - promotion function
- - fun commands
+- fun commands
 
 ### Observer Servers
 
-These are connected servers approved by the main guild. (in the allowlist)
+These are connected servers approved by the main guild.
 
 They can:
 
@@ -106,8 +94,7 @@ They can:
 ### Other Servers / Unknown Servers
 
 Servers that are not allowlisted do not participate in the network settings flow and do not receive observer-only features.
-
-They will be able to use fun commands as their only function
+They will be able to use fun commands as their only function.
 
 
 
@@ -120,6 +107,8 @@ They will be able to use fun commands as their only function
 - Create it in the Discord Developer Portal
 CAREFUL!! do not give this token to anyone (people can access your account through this)
 
+Start from `.env.example`; never commit the populated `.env` file.
+
 **`MONGODB_URI`**
 - MongoDB connection string
 - Example format:
@@ -129,41 +118,46 @@ CAREFUL!! do not give this token to anyone (people can access your account throu
 - The Discord server ID for `Uma Portal`
 - This is the bot's main management guild
 
+**`BOT_ENV`** (optional)
+- Set to `development` only in a development deployment.
+- Enables development-only commands, including `/rotector-test-view`, which is restricted to Uma Portal.
+
+**`ROTECTOR_ENABLED`** (optional)
+- Defaults to `false`, so Rotection does not start or call its API.
+- Set to `true` to enable Rotection again.
+
+Boolean environment variables accept `1`, `true`, `yes`, or `on` (case-insensitive).
+
 
 ---
 
-## Command Groups
+## Commands
 
-The current command surface is split by purpose:
-
-- **Blacklist**
-  - `/blacklist-add`
-  - `/blacklist-remove`
-  - `/blacklist-info`
-  - `/blacklist-list`
-  - `/blacklist-panel`
-  - `/blacklist-history`
-  - `/blacklist-log`
-
-- **Settings**
-  - `/settings`
-
-- **Future or placeholder modules**
-  - promotion
-  - networking
-  - funsies
+See [commands.md](commands.md) for the current command names and per-server visibility.
 
 ---
 
 ## Bot Permissions
 
-When inviting the bot, grant at least: (WIP MIGHT NEED MORE PERMISSIONS)
-- Send Messages
-- Embed Links
-- View Channels
-- Read Message History
+See [bot-permissions.md](bot-permissions.md) for least-privilege invite URLs
+and the required permissions for Uma Portal, observer servers, and unknown
+servers.
 
-To join alerts work:
-- make sure the bot can see and send messages in the configured observer alert channel
+## Deployment checklist
+
+1. Install exact dependencies with `python -m pip install -r docs/requirements.txt`.
+2. Set the required environment variables and keep `ROTECTOR_ENABLED=false` unless Rotection is intentionally enabled.
+3. Stop the running bot and execute `python -m scripts.cleanup_global_commands --confirm-bot-stopped` once when migrating from a legacy global-command deployment.
+4. Take and verify a MongoDB backup before a release that includes a data migration.
+5. Run `python -m scripts.preflight_database` and resolve every reported duplicate before creating unique indexes in production.
+6. Run `python -m scripts.migrate_funsies --backup-id <verified-backup-id> --confirm-backup <verified-backup-id>` during a maintenance window when required. Migrations never run during regular bot startup.
+7. If migration fails, keep the bot stopped and restore the verified MongoDB backup before retrying.
+8. Start the bot once; command synchronization happens during process initialization, not on every reconnect.
+9. Confirm the GitHub Actions unit and MongoDB integration jobs are green before deployment.
+
+`preflight_database` checks the core collections plus Funsies settings,
+inventory ownership, race selections, and daily gacha usage. Inventory
+duplicates are the only Funsies duplicates the migration may consolidate
+automatically; all others must be resolved before the migration starts.
 
 ---

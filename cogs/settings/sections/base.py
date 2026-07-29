@@ -2,7 +2,41 @@ from __future__ import annotations
 
 import discord
 
+from core.ui import UmaLayoutView
 from db.guild_configs import guild_save_settings
+
+
+async def is_settings_administrator(interaction: discord.Interaction) -> bool:
+    permissions = getattr(interaction.user, "guild_permissions", None)
+    return bool(permissions and permissions.administrator)
+
+
+async def deny_non_admin(interaction: discord.Interaction) -> None:
+    message = "Administrator permission is required."
+    if interaction.response.is_done():
+        await interaction.followup.send(message, ephemeral=True)
+    else:
+        await interaction.response.send_message(message, ephemeral=True)
+
+
+class AdminSettingsLayoutView(UmaLayoutView):
+    """Settings UI that re-checks administrator access on every callback."""
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if await is_settings_administrator(interaction):
+            return True
+        await deny_non_admin(interaction)
+        return False
+
+
+class AdminSettingsView(discord.ui.View):
+    """Standard Discord view variant for settings selects and confirmations."""
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if await is_settings_administrator(interaction):
+            return True
+        await deny_non_admin(interaction)
+        return False
 
 
 class SettingModal(discord.ui.Modal):
@@ -25,6 +59,10 @@ class SettingModal(discord.ui.Modal):
             ephemeral=True,
         )
         await self._parent_view.refresh(interaction)
+
+
+
+
 
 
 class ChannelSelect(discord.ui.ChannelSelect):
@@ -67,8 +105,8 @@ class RoleSelect(discord.ui.RoleSelect):
         role = self.values[0]
         # Save both role name and ID for manager-only commands
         settings = {self._key: role.name}
-        # If this is a manager role, also save the ID for permission restrictions
-        if "manager_role" in self._key:
+        # Save a matching ID field for role settings used by permissions or pings.
+        if self._key.endswith("_role"):
             settings[self._key.replace("_role", "_role_id")] = role.id
         await guild_save_settings(self._guild_id, settings)
         await interaction.response.send_message(
@@ -78,14 +116,14 @@ class RoleSelect(discord.ui.RoleSelect):
         await self._parent_view.refresh(interaction)
 
 
-class ChannelSelectView(discord.ui.View):
+class ChannelSelectView(AdminSettingsView):
     def __init__(self, title: str, key: str, guild_id: int, parent_view):
         super().__init__(timeout=120)
         self.title = title
         self.add_item(ChannelSelect(key, guild_id, parent_view))
 
 
-class RoleSelectView(discord.ui.View):
+class RoleSelectView(AdminSettingsView):
     def __init__(self, title: str, key: str, guild_id: int, parent_view):
         super().__init__(timeout=120)
         self.title = title
@@ -97,10 +135,8 @@ class Section:
     emoji: str = "Settings"
     db_keys: list[str] = []
 
-    @staticmethod
     async def get_fields(settings: dict) -> list[tuple[str, str]]:
         return []
 
-    @staticmethod
     def get_buttons(guild_id: int, parent_view) -> list[discord.ui.Button]:
         return []
