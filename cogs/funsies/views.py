@@ -333,13 +333,11 @@ class QuoteCardView(UmaLayoutView):
 
 
 class FactCardView(UmaLayoutView):
-    def __init__(self, text_value: str, category: str | None = None):
+    def __init__(self, text_value: str):
         super().__init__(timeout=None)
-        title = "Uma Fact"
         self.set_container(
-            self.text(f"## :book:    {title}"),
+            self.text("## :book:    Uma Fact"),
             self.text(text_value),
-            self.text(f"> *{category}*") if category else None,
             accent=discord.Colour.green(),
         )
 
