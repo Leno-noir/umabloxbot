@@ -1,100 +1,97 @@
-# Deploy no Render
+# Deploying on Render
 
-O bot é hospedado como um **Web Service gratuito** para que possa permanecer
-ativo por meio de um monitor externo. O bot expõe apenas `GET /health`; ele
-não tem painel web nem API pública.
+The bot is hosted as a free **Web Service** and kept active by an external
+monitor. It exposes only `GET /health`; it does not provide a web dashboard or
+public API.
 
-> O Render não oferece Background Workers gratuitos. O arquivo
-> `render.yaml` usa um Web Service no plano `free`, que hiberna após 15 minutos
-> sem tráfego HTTP recebido.
+> Render does not offer free Background Workers. The `render.yaml` file uses a
+> free Web Service, which spins down after 15 minutes without inbound HTTP
+> traffic.
 
-## Antes do deploy
+## Before deployment
 
-1. Suba este repositório para o GitHub, sem o arquivo `.env`.
-2. Crie e verifique um backup do MongoDB.
-3. No Discord Developer Portal, habilite **Server Members Intent** em
+1. Push this repository to GitHub without the `.env` file.
+2. Create and verify a MongoDB backup.
+3. In the Discord Developer Portal, enable **Server Members Intent** under
    *Bot > Privileged Gateway Intents*.
-4. Convide o bot com os escopos `bot` e `applications.commands`. As
-   permissões por tipo de servidor estão em [docs/bot-permissions.md](docs/bot-permissions.md).
-5. Confirme que a CI do GitHub está verde. O Blueprint só faz deploy após
-   esses checks passarem.
+4. Invite the bot with the `bot` and `applications.commands` scopes. See
+   [docs/bot-permissions.md](docs/bot-permissions.md) for permissions by server type.
+5. Confirm that GitHub Actions is passing. The Blueprint deploys only after
+   those checks pass.
 
-## Criar pelo Blueprint
+## Create the service from the Blueprint
 
-1. No painel do Render, selecione **New + > Blueprint** e conecte o
-   repositório.
-2. O Render detectará o arquivo [render.yaml](render.yaml) e criará o serviço
-   `uma-portal-bot` como Web Service gratuito.
-3. Na tela de variáveis de ambiente, informe os valores abaixo. Nunca coloque
-   tokens, URI do MongoDB ou outros segredos no Git.
-4. Crie o serviço e acompanhe os logs até aparecer `Bot online as ...`.
+1. In the Render dashboard, select **New + > Blueprint** and connect the
+   repository.
+2. Render detects [render.yaml](render.yaml) and creates `uma-portal-bot` as a
+   free Web Service.
+3. Set the environment variables below. Never commit tokens, MongoDB URIs, or
+   other secrets to Git.
+4. Create the service and follow the logs until `Bot online as ...` appears.
 
-O `render.yaml` instala as dependências fixadas em `docs/requirements.txt` e
-inicia o processo com `python bot.py`. O bot abre `GET /health` na porta
-definida automaticamente pelo Render em `PORT`, usa Python 3.12 e mantém
-Rotection desativado em produção.
+The Blueprint installs the pinned dependencies from `docs/requirements.txt`
+and runs `python bot.py`. The bot serves `GET /health` on Render's automatically
+provided `PORT`, uses Python 3.12, and keeps Rotection disabled in production.
 
-## Variáveis de ambiente
+## Environment variables
 
-| Variável | Obrigatória | Valor de produção |
+| Variable | Required | Production value |
 | --- | --- | --- |
-| `DISCORD_TOKEN` | Sim | Token do bot no Discord Developer Portal. |
-| `MONGODB_URI` | Sim | String de conexão do MongoDB/Atlas, com acesso liberado para o Render. |
-| `MAIN_GUILD_ID` | Sim | ID numérico do servidor Uma Portal. |
-| `BOT_ENV` | Não | `production` (já definido pelo Blueprint). |
-| `ROTECTOR_ENABLED` | Não | `false` (já definido pelo Blueprint). |
-| `ROTECTOR_API_KEY` | Só se Rotection for ativado | Chave do serviço Rotection. |
-| `ROTECTOR_API_BASE_URL` | Não | Só altere se a URL padrão do Rotection mudar. |
+| `DISCORD_TOKEN` | Yes | The bot token from the Discord Developer Portal. |
+| `MONGODB_URI` | Yes | MongoDB/Atlas connection string, with access from Render enabled. |
+| `MAIN_GUILD_ID` | Yes | Numeric Discord ID of the Uma Portal server. |
+| `BOT_ENV` | No | `production` (already set by the Blueprint). |
+| `ROTECTOR_ENABLED` | No | `false` (already set by the Blueprint). |
+| `ROTECTOR_API_KEY` | Only if Rotection is enabled | Rotection service key. |
+| `ROTECTOR_API_BASE_URL` | No | Change only if Rotection's default URL changes. |
 
-Se o Atlas usar uma lista de acesso por IP, permita conexões originadas do
-Render conforme a política de rede do seu cluster. Prefira um usuário MongoDB
-exclusivo para o bot, com acesso apenas ao banco necessário.
+If your Atlas cluster uses an IP access list, allow connections originating
+from Render according to your cluster network policy. Prefer a dedicated
+MongoDB user with access only to the database the bot needs.
 
-## Monitor para manter o serviço ativo
+## Monitor to keep the service active
 
-Depois do primeiro deploy, copie a URL pública do Render, por exemplo:
+After the first deployment, copy the public Render URL, for example:
 
 ```text
 https://uma-portal-bot.onrender.com/health
 ```
 
-Configure um monitor externo para fazer uma requisição **HTTP GET** a essa URL
-a cada 5 a 10 minutos. UptimeRobot, Better Stack ou serviço equivalente podem
-ser usados para isso. Não use `/robots.txt`: quando o serviço está suspenso,
-o Render responde essa rota sem iniciar a aplicação.
+Configure an external monitor to send an **HTTP GET** request to this URL every
+5 to 10 minutes. UptimeRobot, Better Stack, or an equivalent service can be
+used. Do not use `/robots.txt`: while the service is suspended, Render responds
+to that path without starting the application.
 
-O monitor não é uma garantia de disponibilidade: se ele parar, o bot hiberna
-após 15 minutos e só volta quando receber uma nova requisição. O endpoint
-retorna `200` com `discord_ready: true` depois que o bot conclui a conexão ao
-Discord.
+The monitor does not guarantee availability: if it stops, the bot spins down
+after 15 minutes and only returns after a new request. The endpoint returns
+`200` with `discord_ready: true` after the bot finishes connecting to Discord.
 
-## Primeira publicação e comandos antigos
+## First deployment and legacy commands
 
-Se uma versão antiga do bot usava comandos globais, faça esta etapa **uma única
-vez**, com a instância de produção parada. Execute em uma máquina confiável com
-as mesmas três variáveis obrigatórias configuradas:
+If an older version of the bot used global commands, complete this step **once**
+with the production service stopped. Run it on a trusted machine with the same
+three required environment variables configured:
 
 ```powershell
 python -m scripts.cleanup_global_commands --confirm-bot-stopped
 ```
 
-Depois, inicie ou faça redeploy no Render. Não execute esse script como Build
-Command, Start Command ou Pre-Deploy Command.
+Then start or redeploy the service on Render. Do not run this script as a build,
+start, or pre-deploy command.
 
-## Migrações de dados
+## Data migrations
 
-Migrações não são executadas no startup. Quando uma release exigir uma,
-agende uma janela de manutenção, pare o worker e siga o procedimento em
-[docs/readme.md](docs/readme.md#deployment-checklist): preflight, backup
-verificado, migração manual e validação antes de iniciar o bot novamente.
+Migrations do not run during startup. When a release requires one, schedule a
+maintenance window, stop the service, and follow the procedure in
+[docs/readme.md](docs/readme.md#deployment-checklist): preflight, verified
+backup, manual migration, and validation before starting the bot again.
 
-## Operação
+## Operations
 
-- Para atualizar: envie um commit para a branch conectada; o Render faz deploy
-  após a CI passar.
-- Para alterar um segredo: atualize-o em **Environment** no Render e faça um
-  redeploy. Não é necessário alterar o `render.yaml`.
-- Para parar o bot: suspenda o Web Service no Render. Isso é necessário
-  antes de executar tarefas de manutenção que pedem o bot parado.
-- Os dados permanecem no MongoDB; o sistema de arquivos do Render não é usado
-  para persistência.
+- To update: push a commit to the connected branch; Render deploys after CI
+  passes.
+- To change a secret: update it under **Environment** in Render, then redeploy.
+  You do not need to edit `render.yaml`.
+- To stop the bot: suspend the Web Service in Render. This is required before
+  maintenance tasks that require the bot to be stopped.
+- Data remains in MongoDB; Render's filesystem is not used for persistence.
