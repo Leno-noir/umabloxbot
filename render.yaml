@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: uma-portal-bot
+    runtime: python
+    plan: free
+    region: ohio
+    buildCommand: python -m pip install --upgrade pip && python -m pip install -r docs/requirements.txt
+    startCommand: python bot.py
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 30
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: MAIN_GUILD_ID
+        sync: false
+      - key: BOT_ENV
+        value: production
+      - key: ROTECTOR_ENABLED
+        value: "false"

@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import os
 
 import discord
+from aiohttp import web
 from discord import app_commands
 from discord.ext import commands
 
@@ -31,6 +33,24 @@ from cogs.blacklist.views import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def health_check(_request: web.Request) -> web.Response:
+    """Expose a minimal HTTP endpoint for the Render Web Service."""
+    return web.json_response({"status": "ok", "discord_ready": bot.is_ready()})
+
+
+async def start_health_server() -> web.AppRunner:
+    """Start the lightweight server required by Render's free Web Service."""
+    app = web.Application()
+    app.router.add_get("/health", health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", "8080"))
+    site = web.TCPSite(runner, host="0.0.0.0", port=port)
+    await site.start()
+    logger.info("Health endpoint listening on port %s", port)
+    return runner
 
 #configure bot intents (permissions for reading guild events)
 intents = discord.Intents.default()
@@ -215,8 +235,12 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 
 #main async function that initializes and starts the bot
 async def main():
-    async with bot:
-        await bot.start(DISCORD_TOKEN)
+    health_server = await start_health_server()
+    try:
+        async with bot:
+            await bot.start(DISCORD_TOKEN)
+    finally:
+        await health_server.cleanup()
 
 
 #entry point for the script
