@@ -148,16 +148,18 @@ servers.
 1. Install exact dependencies with `python -m pip install -r docs/requirements.txt`.
 2. Set the required environment variables and keep `ROTECTOR_ENABLED=false` unless Rotection is intentionally enabled.
 3. Stop the running bot and execute `python -m scripts.cleanup_global_commands --confirm-bot-stopped` once when migrating from a legacy global-command deployment.
-4. Take and verify a MongoDB backup before a release that includes a data migration.
-5. Run `python -m scripts.preflight_database` and resolve every reported duplicate before creating unique indexes in production.
+4. Take and verify MongoDB backups for both `umablox` and `umablox_application` before a release that includes a data migration.
+5. Run `python -m scripts.preflight_database` and resolve every reported duplicate in both reports before creating unique indexes in production.
 6. Run `python -m scripts.migrate_funsies --backup-id <verified-backup-id> --confirm-backup <verified-backup-id>` during a maintenance window when required. Migrations never run during regular bot startup.
 7. If migration fails, keep the bot stopped and restore the verified MongoDB backup before retrying.
 8. Start the bot once; command synchronization happens during process initialization, not on every reconnect.
 9. Confirm the GitHub Actions unit and MongoDB integration jobs are green before deployment.
 
 `preflight_database` checks the core collections plus Funsies settings,
-inventory ownership, race selections, and daily gacha usage. Inventory
-duplicates are the only Funsies duplicates the migration may consolidate
-automatically; all others must be resolved before the migration starts.
+inventory ownership, race selections, and daily gacha usage. It also checks
+the user-install application database for gacha usage, inventory, and race
+selection duplicates. Inventory duplicates are the only primary Funsies
+duplicates the migration may consolidate automatically; all others must be
+resolved before the migration starts.
 
 ---

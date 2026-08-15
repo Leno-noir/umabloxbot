@@ -40,6 +40,7 @@ provided `PORT`, uses Python 3.12, and keeps Rotection disabled in production.
 | `DISCORD_TOKEN` | Yes | The bot token from the Discord Developer Portal. |
 | `MONGODB_URI` | Yes | MongoDB/Atlas connection string, with access from Render enabled. |
 | `MAIN_GUILD_ID` | Yes | Numeric Discord ID of the Uma Portal server. |
+| `APPLICATION_MONGODB_DATABASE` | No | `umablox_application` (the isolated user-install gacha database). |
 | `BOT_ENV` | No | `production` (already set by the Blueprint). |
 | `ROTECTOR_ENABLED` | No | `false` (already set by the Blueprint). |
 | `ROTECTOR_API_KEY` | Only if Rotection is enabled | Rotection service key. |
@@ -47,7 +48,7 @@ provided `PORT`, uses Python 3.12, and keeps Rotection disabled in production.
 
 If your Atlas cluster uses an IP access list, allow connections originating
 from Render according to your cluster network policy. Prefer a dedicated
-MongoDB user with access only to the database the bot needs.
+MongoDB user with access only to `umablox` and `umablox_application`.
 
 ## Monitor to keep the service active
 
@@ -64,7 +65,8 @@ to that path without starting the application.
 
 The monitor does not guarantee availability: if it stops, the bot spins down
 after 15 minutes and only returns after a new request. The endpoint returns
-`200` with `discord_ready: true` after the bot finishes connecting to Discord.
+`503` until the bot finishes connecting to Discord, then `200` with
+`discord_ready: true`.
 
 ## First deployment and legacy commands
 

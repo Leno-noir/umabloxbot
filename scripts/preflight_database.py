@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.config import MONGODB_URI
-from db.connection import connect, disconnect, get_db
+from db.connection import connect, disconnect, get_application_db, get_db
 
 
 @dataclass(frozen=True)
@@ -40,6 +40,16 @@ UNIQUE_CHECKS = {
     ),
 }
 
+APPLICATION_UNIQUE_CHECKS = {
+    "gacha_daily_usage.user_id_date": UniqueCheck(
+        "gacha_daily_usage", ("user_id", "date")
+    ),
+    "user_uma_inventory.user_id_uma_id": UniqueCheck(
+        "user_uma_inventory", ("user_id", "uma_id")
+    ),
+    "user_race_settings.user_id": UniqueCheck("user_race_settings", ("user_id",)),
+}
+
 
 class PreflightError(RuntimeError):
     """Raised when uniqueness preconditions are not safe for a migration."""
@@ -67,6 +77,16 @@ async def build_preflight_report(database=None) -> dict[str, int]:
     return {
         name: await duplicate_count(database, check)
         for name, check in UNIQUE_CHECKS.items()
+    }
+
+
+async def build_application_preflight_report(database=None) -> dict[str, int]:
+    """Report duplicate records that would block application-gacha indexes."""
+    if database is None:
+        database = get_application_db()
+    return {
+        name: await duplicate_count(database, check)
+        for name, check in APPLICATION_UNIQUE_CHECKS.items()
     }
 
 
@@ -100,9 +120,12 @@ async def main() -> int:
         raise RuntimeError("MONGODB_URI is required for database preflight.")
     await connect()
     try:
-        report = await build_preflight_report()
+        report = {
+            "primary": await build_preflight_report(),
+            "application": await build_application_preflight_report(),
+        }
         print(json.dumps(report, sort_keys=True))
-        return 1 if any(report.values()) else 0
+        return 1 if any(count for database_report in report.values() for count in database_report.values()) else 0
     finally:
         await disconnect()
 

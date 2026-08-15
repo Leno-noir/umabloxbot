@@ -36,8 +36,12 @@ logger = logging.getLogger(__name__)
 
 
 async def health_check(_request: web.Request) -> web.Response:
-    """Expose a minimal HTTP endpoint for the Render Web Service."""
-    return web.json_response({"status": "ok", "discord_ready": bot.is_ready()})
+    """Expose a readiness endpoint for the Render Web Service."""
+    discord_ready = bot.is_ready()
+    return web.json_response(
+        {"status": "ok" if discord_ready else "starting", "discord_ready": discord_ready},
+        status=200 if discord_ready else 503,
+    )
 
 
 async def start_health_server() -> web.AppRunner:
