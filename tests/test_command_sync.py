@@ -61,10 +61,10 @@ class CommandSyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report["unknown:3"], 1)
         self.assertIn(None, bot.tree.cleared)
 
-    async def test_normal_sync_never_clears_global_commands(self):
+    async def test_normal_sync_rebuilds_only_the_global_application_command_tree(self):
         bot = FakeBot()
         with patch("core.command_sync.allowed_guild_list_enabled", AsyncMock(return_value=[])):
             await sync_network_commands(bot, 1)
 
-        self.assertNotIn(None, bot.tree.cleared)
+        self.assertEqual(bot.tree.cleared.count(None), 2)
         bot.tree.fetch_commands.assert_not_awaited()

@@ -1,6 +1,6 @@
 # Re-exports database functions for simple imports
 # Usage: from db import bl_add, connect, guild_get_settings, etc.
-from .connection import connect, disconnect, get_db
+from .connection import connect, disconnect, get_application_db, get_db
 from .blacklist import (
     bl_add, bl_remove, bl_get, bl_is_banned,
     bl_history, bl_list_active, bl_global_log,
@@ -19,6 +19,9 @@ from .allowed_guilds import (
 )
 from .funsies import (
     DEFAULT_FUNSIES_SETTINGS,
+    application_gacha_get_usage, application_gacha_increment_usage,
+    application_inventory_add_copy, application_inventory_has_copy,
+    ensure_application_gacha_indexes,
     ensure_funsies_indexes,
     run_funsies_migrations,
     fact_add, fact_delete, fact_get_random_active, fact_list, fact_toggle_active,

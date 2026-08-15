@@ -4,6 +4,21 @@ Commands are synchronized per server type. The main guild is Uma Portal;
 enabled allowlisted servers are observers; all other servers receive only the
 Funsies commands.
 
+## User-installed application commands
+
+`/quote`, `/fact`, and `/gacha` are also global application commands. A user
+who installs the app on their Discord account can use them in DMs and group
+DMs. The `/gacha` command detects the install type: guild installations use
+the server gacha data; user installations use the separate
+`umablox_application` MongoDB database for daily usage and owned Umas. The
+Uma catalogue remains shared so both experiences have the same available
+characters.
+
+To expose these commands to users, enable **User Install** in the Discord
+Developer Portal's Installation page and include the `applications.commands`
+scope in the user-install link. `APPLICATION_MONGODB_DATABASE` can be used to
+rename the application-gacha database.
+
 ## Uma Portal
 
 - `/blacklist add`, `/blacklist remove`, `/blacklist info`, `/blacklist list`,

@@ -9,7 +9,7 @@ Handles the lifecycle of the MongoDB connection:
 import logging
 
 from motor.motor_asyncio import AsyncIOMotorClient
-from core.config import MONGODB_URI
+from core.config import APPLICATION_MONGODB_DATABASE, MONGODB_URI
 
 # Global MongoDB client instance (None until connect() is called)
 _client: AsyncIOMotorClient | None = None # type: ignore
@@ -20,6 +20,13 @@ def get_db():
     if _client is None:
         raise RuntimeError("MongoDB is not connected. Call connect() before accessing the database.")
     return _client["umablox"]
+
+
+def get_application_db():
+    """Return the isolated database used by user-installed app commands."""
+    if _client is None:
+        raise RuntimeError("MongoDB is not connected. Call connect() before accessing the database.")
+    return _client[APPLICATION_MONGODB_DATABASE]
 
 # establishes connection to MongoDB and verifies connectivity with a ping
 # called once on bot startup in bot.main()

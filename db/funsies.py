@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from bson import ObjectId
 
-from .connection import get_db
+from .connection import get_application_db, get_db
 
 
 logger = logging.getLogger(__name__)
@@ -759,6 +759,69 @@ async def gacha_increment_usage(
     return int(doc.get("used", 0)) if doc else amount
 
 
+async def application_gacha_get_usage(
+    user_id: int,
+    date_key: str | None = None,
+) -> dict | None:
+    """Get daily gacha usage from the user-installed app database."""
+    db = get_application_db()
+    date = date_key or _today_key()
+    item = await db.gacha_daily_usage.find_one({"user_id": user_id, "date": date})
+    if not item:
+        return None
+    return {"user_id": user_id, "date": date, "used": int(item.get("used", 0) or 0)}
+
+
+async def application_gacha_increment_usage(
+    user_id: int,
+    amount: int,
+    date_key: str | None = None,
+) -> int:
+    """Increment daily gacha usage in the user-installed app database."""
+    db = get_application_db()
+    today = date_key or _today_key()
+    await db.gacha_daily_usage.update_one(
+        {"user_id": user_id, "date": today},
+        {
+            "$setOnInsert": {"user_id": user_id, "date": today},
+            "$inc": {"used": amount},
+        },
+        upsert=True,
+    )
+    doc = await application_gacha_get_usage(user_id, today)
+    return int(doc.get("used", 0)) if doc else amount
+
+
+async def application_inventory_has_copy(user_id: int, uma_id: ObjectId) -> bool:
+    """Check application-gacha ownership without reading guild inventories."""
+    db = get_application_db()
+    return await db.user_uma_inventory.find_one({"user_id": user_id, "uma_id": uma_id}) is not None
+
+
+async def application_inventory_add_copy(user_id: int, uma_document: dict) -> dict:
+    """Store ownership for a user-installed app gacha pull.
+
+    The Uma catalogue remains shared, but ownership is intentionally written to
+    the separate application database so it can never mix with a guild team.
+    """
+    db = get_application_db()
+    existing = await db.user_uma_inventory.find_one(
+        {"user_id": user_id, "uma_id": uma_document["_id"]}
+    )
+    if existing:
+        return existing
+
+    document = {
+        "user_id": user_id,
+        "uma_id": uma_document["_id"],
+        "wins": 0,
+        "obtained_at": _now(),
+    }
+    result = await db.user_uma_inventory.insert_one(document)
+    document["_id"] = result.inserted_id
+    return document
+
+
 async def race_save_result(result: dict) -> dict:
     db = get_db()
     document = dict(result)
@@ -877,6 +940,21 @@ async def ensure_funsies_indexes() -> None:
     await db.uma_characters.create_index([("active", 1), ("rarity", 1), ("overall", -1)])
     await db.uma_race_results.create_index(
         [("guild_id", 1), ("winner_time_ms", 1), ("created_at", -1)]
+    )
+
+
+async def ensure_application_gacha_indexes() -> None:
+    """Create indexes in the database reserved for application gacha data."""
+    db = get_application_db()
+    await db.gacha_daily_usage.create_index(
+        [("user_id", 1), ("date", 1)],
+        unique=True,
+        name="unique_application_gacha_usage",
+    )
+    await db.user_uma_inventory.create_index(
+        [("user_id", 1), ("uma_id", 1)],
+        unique=True,
+        name="unique_application_owned_uma",
     )
 
 

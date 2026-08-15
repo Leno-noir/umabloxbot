@@ -7,8 +7,14 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from core.application_commands import application_command
 from db.funsies import (
+    application_gacha_get_usage,
+    application_gacha_increment_usage,
+    application_inventory_add_copy,
+    application_inventory_has_copy,
     fact_get_random_active,
+    ensure_application_gacha_indexes,
     ensure_funsies_indexes,
     funsies_get_gacha_rarity_chances,
     funsies_get_gacha_rarity_names,
@@ -68,7 +74,7 @@ class Funsies(commands.Cog):
             return f"User {user_id}"
 
     async def _require_enabled(self, interaction: discord.Interaction, key: str, label: str) -> bool:
-        settings = await funsies_get_settings(interaction.guild_id)
+        settings = await funsies_get_settings(interaction.guild_id or 0)
         if settings.get(key, True):
             return True
 
@@ -115,7 +121,7 @@ class Funsies(commands.Cog):
         return chances, rarity_names
 
     @app_commands.command(name="quote", description="Show a random quote")
-    @app_commands.guild_only()
+    @application_command
     async def quote(self, interaction: discord.Interaction):
         if not await self._require_enabled(interaction, "quote_enabled", "Quote"):
             return
@@ -134,7 +140,7 @@ class Funsies(commands.Cog):
         )
 
     @app_commands.command(name="fact", description="Show a random fact")
-    @app_commands.guild_only()
+    @application_command
     async def fact(self, interaction: discord.Interaction):
         if not await self._require_enabled(interaction, "fact_enabled", "Fact"):
             return
@@ -153,14 +159,24 @@ class Funsies(commands.Cog):
         )
 
     @app_commands.command(name="gacha", description="Roll a random Uma from the active collection")
-    @app_commands.guild_only()
+    @application_command
     async def gacha(self, interaction: discord.Interaction):
+        # A user integration is the application-installed command, including
+        # when Discord lets that installation invoke it inside a guild.
+        is_application_gacha = interaction.is_user_integration()
         await interaction.response.defer(thinking=True)
-        settings, usage_doc, active_umas = await asyncio.gather(
-            funsies_get_settings(interaction.guild_id),
-            gacha_get_usage(interaction.guild_id, interaction.user.id),
-            uma_list_characters(interaction.guild_id, active=True),
-        )
+        if is_application_gacha:
+            settings, usage_doc, active_umas = await asyncio.gather(
+                funsies_get_settings(0),
+                application_gacha_get_usage(interaction.user.id),
+                uma_list_characters(0, active=True),
+            )
+        else:
+            settings, usage_doc, active_umas = await asyncio.gather(
+                funsies_get_settings(interaction.guild_id),
+                gacha_get_usage(interaction.guild_id, interaction.user.id),
+                uma_list_characters(interaction.guild_id, active=True),
+            )
         chances, rarity_names = self._gacha_config_from_settings(settings)
         if not settings.get("uma_collection_enabled", True):
             await interaction.followup.send(
@@ -194,7 +210,8 @@ class Funsies(commands.Cog):
             return
 
         rarity = random.choice(rarity_pool)
-        picked = await uma_get_random_by_rarity(interaction.guild_id, rarity)
+        catalog_scope = 0 if is_application_gacha else interaction.guild_id
+        picked = await uma_get_random_by_rarity(catalog_scope, rarity)
         if not picked:
             matching_active_umas = [uma for uma in active_umas if int(uma.get("rarity", 1) or 1) == rarity]
             if not matching_active_umas:
@@ -210,19 +227,31 @@ class Funsies(commands.Cog):
                 ephemeral=True,
             )
             return
-        already_owned = await inventory_has_copy(
-            interaction.guild_id,
-            interaction.user.id,
-            picked["_id"],
-        )
-        if not already_owned:
-            await inventory_add_copy(
+        if is_application_gacha:
+            already_owned = await application_inventory_has_copy(
+                interaction.user.id,
+                picked["_id"],
+            )
+        else:
+            already_owned = await inventory_has_copy(
                 interaction.guild_id,
                 interaction.user.id,
-                picked,
+                picked["_id"],
             )
+        if not already_owned:
+            if is_application_gacha:
+                await application_inventory_add_copy(interaction.user.id, picked)
+            else:
+                await inventory_add_copy(
+                    interaction.guild_id,
+                    interaction.user.id,
+                    picked,
+                )
 
-        await gacha_increment_usage(interaction.guild_id, interaction.user.id, 1)
+        if is_application_gacha:
+            await application_gacha_increment_usage(interaction.user.id, 1)
+        else:
+            await gacha_increment_usage(interaction.guild_id, interaction.user.id, 1)
         await interaction.followup.send(
             view=GachaResultView(picked, interaction.user.id, interaction.user.mention, rarity_names)
         )
@@ -517,4 +546,5 @@ class Funsies(commands.Cog):
 
 async def setup(bot: commands.Bot):
     await ensure_funsies_indexes()
+    await ensure_application_gacha_indexes()
     await bot.add_cog(Funsies(bot))

@@ -17,6 +17,7 @@ def env_flag(name: str, default: bool = False) -> bool:
 # Discord bot token and MongoDB connection URI.
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 MONGODB_URI = os.getenv("MONGODB_URI")
+APPLICATION_MONGODB_DATABASE = os.getenv("APPLICATION_MONGODB_DATABASE", "umablox_application").strip() or "umablox_application"
 
 # Kept non-fatal at import time so tooling and tests can import this module.
 try:

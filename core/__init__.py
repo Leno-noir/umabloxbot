@@ -7,6 +7,7 @@ from .config import (
     validate_runtime_config,
 )
 from .command_definitions import COMMAND_GROUPS, GUILD_TYPE_COMMANDS, get_commands_for_guild_type, get_manager_only_commands
+from .application_commands import application_command
 from .utils import (
     format_discord_id, timestamp_to_discord, pagination_text,
     get_user_by_discord_id, format_guild_id, is_main_guild, get_guild_type,
@@ -32,6 +33,7 @@ __all__ = [
     "GUILD_TYPE_COMMANDS",
     "get_commands_for_guild_type",
     "get_manager_only_commands",
+    "application_command",
     "format_discord_id",
     "timestamp_to_discord",
     "pagination_text",

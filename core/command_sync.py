@@ -5,6 +5,7 @@ import logging
 import discord
 
 from db.allowed_guilds import allowed_guild_list_enabled
+from .application_commands import is_application_command
 from .command_definitions import get_commands_for_guild_type
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,28 @@ def add_commands_for_guild_type(bot, guild_object, guild_type: str):
         command = bot.tree.get_command(command_name)
         if command:
             bot.tree.add_command(command, guild=guild_object, override=True)
+
+
+async def sync_application_commands(bot, source_commands) -> int:
+    """Publish marked commands globally without exposing every guild command.
+
+    Discord user-installed application commands must be global to work in DMs.
+    We temporarily build a global tree containing only marked commands, sync it,
+    then restore the full local source tree for the guild-specific sync below.
+    """
+
+    application_commands = [
+        command for command in source_commands if is_application_command(command)
+    ]
+    bot.tree.clear_commands(guild=None)
+    for command in application_commands:
+        bot.tree.add_command(command, override=True)
+    synced = await bot.tree.sync()
+
+    bot.tree.clear_commands(guild=None)
+    for command in source_commands:
+        bot.tree.add_command(command, override=True)
+    return len(synced)
 
 
 async def sync_network_commands(
@@ -30,19 +53,17 @@ async def sync_network_commands(
     """
 
     report: dict[str, int] = {}
+    local_commands = list(bot.tree.get_commands())
     main_guild = discord.Object(id=main_guild_id)
     if clear_global_commands:
         legacy_global_commands = await bot.tree.fetch_commands()
-        local_commands = list(bot.tree.get_commands())
         bot.tree.clear_commands(guild=None)
         await bot.tree.sync()
-        # Clearing global commands also clears the local source commands that
-        # are copied into each guild. Restore them locally without syncing
-        # globally, then rebuild the guild-scoped command sets below.
-        for command in local_commands:
-            bot.tree.add_command(command, override=True)
         report["global_removed"] = len(legacy_global_commands)
         logger.info("Removed %s legacy global commands", report["global_removed"])
+
+    report["application"] = await sync_application_commands(bot, local_commands)
+    logger.info("Application commands synced: %s", report["application"])
 
     # === MAIN GUILD: Full command set with manager-only restrictions ===
     bot.tree.clear_commands(guild=main_guild)
