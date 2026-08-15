@@ -12,7 +12,12 @@ from db.funsies import (
     application_gacha_get_usage,
     application_gacha_increment_usage,
     application_inventory_add_copy,
+    application_inventory_get_selected_or_best,
     application_inventory_has_copy,
+    application_inventory_increment_win,
+    application_inventory_list,
+    application_race_get_leaderboard,
+    application_race_save_result,
     fact_get_random_active,
     ensure_application_gacha_indexes,
     ensure_funsies_indexes,
@@ -257,11 +262,12 @@ class Funsies(commands.Cog):
         )
 
     @app_commands.command(name="gacha-info", description="Show gacha rarity pool and current chances")
-    @app_commands.guild_only()
+    @application_command
     async def gacha_info(self, interaction: discord.Interaction):
+        scope = 0 if interaction.is_user_integration() else interaction.guild_id
         settings, active_umas = await asyncio.gather(
-            funsies_get_settings(interaction.guild_id),
-            uma_list_characters(interaction.guild_id, active=True),
+            funsies_get_settings(scope),
+            uma_list_characters(scope, active=True),
         )
         chances, rarity_names = self._gacha_config_from_settings(settings)
         if not settings.get("uma_collection_enabled", True):
@@ -291,10 +297,11 @@ class Funsies(commands.Cog):
         await interaction.response.send_message(view=view, ephemeral=True)
 
     @app_commands.command(name="uma-list", description="Show every Uma in the collection")
-    @app_commands.guild_only()
+    @application_command
     @app_commands.describe(rarity="Filter by rarity")
     async def allumas(self, interaction: discord.Interaction, rarity: str | None = None):
-        settings = await funsies_get_settings(interaction.guild_id)
+        scope = 0 if interaction.is_user_integration() else interaction.guild_id
+        settings = await funsies_get_settings(scope)
         if not settings.get("uma_collection_enabled", True):
             await interaction.response.send_message(
                 "Uma collection is disabled globally right now.",
@@ -302,11 +309,11 @@ class Funsies(commands.Cog):
             )
             return
 
-        umas = await uma_list_characters(interaction.guild_id)
+        umas = await uma_list_characters(scope)
         if rarity is not None:
             rarity_filter = rarity.strip()
             if rarity_filter:
-                rarity_names = await funsies_get_gacha_rarity_names(interaction.guild_id)
+                rarity_names = await funsies_get_gacha_rarity_names(scope)
                 rarity_ids = {
                     str(rarity_id)
                     for rarity_id, rarity_name in rarity_names.items()
@@ -330,7 +337,7 @@ class Funsies(commands.Cog):
 
         title = "All Umas"
         if rarity:
-            rarity_names = await funsies_get_gacha_rarity_names(interaction.guild_id)
+            rarity_names = await funsies_get_gacha_rarity_names(scope)
             rarity_label = rarity_names.get(rarity.strip(), rarity.strip())
             for uma in umas:
                 label = uma.get("rarity_label") or uma.get("rarity_name")
@@ -343,9 +350,10 @@ class Funsies(commands.Cog):
 
     @app_commands.command(name="uma-info", description="Search Umas by name")
     @app_commands.describe(name="Name or partial name to search")
-    @app_commands.guild_only()
+    @application_command
     async def lookuma(self, interaction: discord.Interaction, name: str):
-        settings = await funsies_get_settings(interaction.guild_id)
+        scope = 0 if interaction.is_user_integration() else interaction.guild_id
+        settings = await funsies_get_settings(scope)
         if not settings.get("uma_collection_enabled", True):
             await interaction.response.send_message(
                 "Uma collection is disabled globally right now.",
@@ -353,7 +361,7 @@ class Funsies(commands.Cog):
             )
             return
 
-        umas = await uma_search_by_name(interaction.guild_id, name)
+        umas = await uma_search_by_name(scope, name)
         if not umas:
             await interaction.response.send_message(
                 f'No Umas found matching "{name}".',
@@ -366,15 +374,20 @@ class Funsies(commands.Cog):
 
     @app_commands.command(name="uma-inventory", description="Show a user's Uma inventory")
     @app_commands.describe(user="User to inspect", public_visibility="Make the inventory visible to everyone")
-    @app_commands.guild_only()
+    @application_command
     async def umainventory(
         self,
         interaction: discord.Interaction,
-        user: discord.Member | None = None,
+        user: discord.User | None = None,
         public_visibility: bool = False,
     ):
+        is_application = interaction.is_user_integration()
         target = user or interaction.user
-        items = await inventory_list(interaction.guild_id, target.id)
+        items = (
+            await application_inventory_list(target.id)
+            if is_application
+            else await inventory_list(interaction.guild_id, target.id)
+        )
         if not items:
             await interaction.response.send_message(
                 f"{target.display_name} does not have any Umas yet.",
@@ -382,13 +395,15 @@ class Funsies(commands.Cog):
             )
             return
 
-        view = InventoryView(interaction.guild_id, target)
+        view = InventoryView(interaction.guild_id or 0, target, application=is_application)
         await view.send(interaction, ephemeral=not public_visibility)
 
     @app_commands.command(name="choose-your-race-uma", description="Choose which Uma will be used in races")
-    @app_commands.guild_only()
+    @application_command
     async def uma_race_select(self, interaction: discord.Interaction):
-        settings = await funsies_get_settings(interaction.guild_id)
+        is_application = interaction.is_user_integration()
+        scope = 0 if is_application else interaction.guild_id
+        settings = await funsies_get_settings(scope)
         if not settings.get("uma_collection_enabled", True):
             await interaction.response.send_message(
                 "Uma collection is disabled globally right now.",
@@ -396,7 +411,11 @@ class Funsies(commands.Cog):
             )
             return
 
-        items = await inventory_list(interaction.guild_id, interaction.user.id)
+        items = (
+            await application_inventory_list(interaction.user.id)
+            if is_application
+            else await inventory_list(interaction.guild_id, interaction.user.id)
+        )
         if not items:
             await interaction.response.send_message(
                 "You do not have any Umas yet.",
@@ -404,15 +423,17 @@ class Funsies(commands.Cog):
             )
             return
 
-        view = RaceSelectView(interaction.guild_id, interaction.user.id)
+        view = RaceSelectView(interaction.guild_id or 0, interaction.user.id, application=is_application)
         view.items = items
         await view.send(interaction, ephemeral=True)
 
     @app_commands.command(name="race", description="Race another user using your selected Uma")
     @app_commands.describe(opponent="User to race against", mention="Mention users in the result")
-    @app_commands.guild_only()
-    async def race(self, interaction: discord.Interaction, opponent: discord.Member, mention: bool = True):
-        settings = await funsies_get_settings(interaction.guild_id)
+    @application_command
+    async def race(self, interaction: discord.Interaction, opponent: discord.User, mention: bool = True):
+        is_application = interaction.is_user_integration()
+        scope = 0 if is_application else interaction.guild_id
+        settings = await funsies_get_settings(scope)
         if not settings.get("uma_collection_enabled", True):
             await interaction.response.send_message(
                 "Uma collection is disabled globally right now.",
@@ -434,8 +455,16 @@ class Funsies(commands.Cog):
             )
             return
 
-        author_pick = await inventory_get_selected_or_best(interaction.guild_id, interaction.user.id)
-        opponent_pick = await inventory_get_selected_or_best(interaction.guild_id, opponent.id)
+        if is_application:
+            author_pick, opponent_pick = await asyncio.gather(
+                application_inventory_get_selected_or_best(interaction.user.id),
+                application_inventory_get_selected_or_best(opponent.id),
+            )
+        else:
+            author_pick, opponent_pick = await asyncio.gather(
+                inventory_get_selected_or_best(interaction.guild_id, interaction.user.id),
+                inventory_get_selected_or_best(interaction.guild_id, opponent.id),
+            )
         if not author_pick or not opponent_pick:
             await interaction.response.send_message(
                 "Both users need at least one Uma in their inventory.",
@@ -474,33 +503,37 @@ class Funsies(commands.Cog):
             winner_time = opponent_time
             loser_time = author_time
 
-        await inventory_increment_win(
-            interaction.guild_id,
-            winner_user.id,
-            winner_pick["_id"],
-        )
+        if is_application:
+            await application_inventory_increment_win(winner_user.id, winner_pick["_id"])
+        else:
+            await inventory_increment_win(
+                interaction.guild_id,
+                winner_user.id,
+                winner_pick["_id"],
+            )
         winner_pick_after = winner_pick.get("wins", 0) + 1
         margin = race_margin_from_diff(abs(loser_time - winner_time))
 
-        await race_save_result(
-            {
-                "guild_id": interaction.guild_id,
-                "winner_user_id": winner_user.id,
-                "loser_user_id": loser_user.id,
-                "winner_uma_inventory_id": winner_pick["_id"],
-                "winner_uma_name": winner_pick["uma_name"],
-                "winner_uma_overall": winner_pick["overall"],
-                "winner_uma_rarity": winner_pick["rarity"],
-                "winner_time_ms": winner_time,
-                "winner_uma_wins_after": winner_pick_after,
-                "loser_uma_inventory_id": loser_pick["_id"],
-                "loser_uma_name": loser_pick["uma_name"],
-                "loser_uma_overall": loser_pick["overall"],
-                "loser_uma_rarity": loser_pick["rarity"],
-                "loser_time_ms": loser_time,
-                "margin": margin,
-            }
-        )
+        race_result = {
+            "winner_user_id": winner_user.id,
+            "loser_user_id": loser_user.id,
+            "winner_uma_inventory_id": winner_pick["_id"],
+            "winner_uma_name": winner_pick["uma_name"],
+            "winner_uma_overall": winner_pick["overall"],
+            "winner_uma_rarity": winner_pick["rarity"],
+            "winner_time_ms": winner_time,
+            "winner_uma_wins_after": winner_pick_after,
+            "loser_uma_inventory_id": loser_pick["_id"],
+            "loser_uma_name": loser_pick["uma_name"],
+            "loser_uma_overall": loser_pick["overall"],
+            "loser_uma_rarity": loser_pick["rarity"],
+            "loser_time_ms": loser_time,
+            "margin": margin,
+        }
+        if is_application:
+            await application_race_save_result(race_result)
+        else:
+            await race_save_result({"guild_id": interaction.guild_id, **race_result})
 
         winner_label = winner_user.mention if mention else winner_user.display_name
         loser_label = loser_user.mention if mention else loser_user.display_name
@@ -520,9 +553,14 @@ class Funsies(commands.Cog):
         )
 
     @app_commands.command(name="leaderboard", description="Show the fastest Uma race times")
-    @app_commands.guild_only()
+    @application_command
     async def leaderboard(self, interaction: discord.Interaction):
-        results = await race_get_leaderboard(interaction.guild_id, limit=50)
+        is_application = interaction.is_user_integration()
+        results = (
+            await application_race_get_leaderboard(limit=50)
+            if is_application
+            else await race_get_leaderboard(interaction.guild_id, limit=50)
+        )
         if not results:
             await interaction.response.send_message("No race results have been recorded yet.")
             return

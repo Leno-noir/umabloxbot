@@ -16,6 +16,8 @@ class FakeApplicationDatabase:
     def __init__(self):
         self.gacha_daily_usage = FakeCollection()
         self.user_uma_inventory = FakeCollection()
+        self.user_race_settings = FakeCollection()
+        self.uma_race_results = FakeCollection()
 
 
 class ApplicationGachaDatabaseTests(unittest.IsolatedAsyncioTestCase):
@@ -30,3 +32,8 @@ class ApplicationGachaDatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(usage_options["unique"])
         self.assertEqual(inventory_keys, [("user_id", 1), ("uma_id", 1)])
         self.assertTrue(inventory_options["unique"])
+        self.assertTrue(database.user_race_settings.calls[0][1]["unique"])
+        self.assertEqual(
+            database.uma_race_results.calls[0][0],
+            [("winner_time_ms", 1), ("created_at", -1)],
+        )

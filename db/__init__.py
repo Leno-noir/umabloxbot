@@ -20,7 +20,11 @@ from .allowed_guilds import (
 from .funsies import (
     DEFAULT_FUNSIES_SETTINGS,
     application_gacha_get_usage, application_gacha_increment_usage,
-    application_inventory_add_copy, application_inventory_has_copy,
+    application_inventory_add_copy, application_inventory_get_selected,
+    application_inventory_get_selected_or_best, application_inventory_has_copy,
+    application_inventory_increment_win, application_inventory_list,
+    application_inventory_set_selected, application_race_get_leaderboard,
+    application_race_save_result,
     ensure_application_gacha_indexes,
     ensure_funsies_indexes,
     run_funsies_migrations,

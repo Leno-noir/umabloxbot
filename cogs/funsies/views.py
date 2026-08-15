@@ -8,6 +8,9 @@ from bson import ObjectId
 from core.config import Colors
 from core.ui import PaginatedLayoutView, UmaLayoutView
 from db.funsies import (
+    application_inventory_get_selected,
+    application_inventory_list,
+    application_inventory_set_selected,
     fact_add,
     fact_delete,
     fact_list,
@@ -742,9 +745,10 @@ class RaceSelectView(FunsiesPagedChoiceView):
     title_text = "Select your Race Uma"
     empty_text_text = "You do not have any Umas yet."
 
-    def __init__(self, guild_id: int, user_id: int, parent_view=None, *, page: int = 1):
+    def __init__(self, guild_id: int, user_id: int, parent_view=None, *, application: bool = False, page: int = 1):
         super().__init__(guild_id, parent_view, page=page, timeout=180)
         self.user_id = user_id
+        self.application = application
 
     def build_line(self, item: dict, index: int) -> str:
         selected = item.get("_id") == getattr(self, "_selected_id", None)
@@ -764,12 +768,19 @@ class RaceSelectView(FunsiesPagedChoiceView):
         )
 
     async def _rebuild_layout(self):
-        selected_doc = await inventory_get_selected(self.guild_id, self.user_id)
+        selected_doc = (
+            await application_inventory_get_selected(self.user_id)
+            if self.application
+            else await inventory_get_selected(self.guild_id, self.user_id)
+        )
         self._selected_id = selected_doc.get("selected_inventory_uma_id") if selected_doc else None
         await super()._rebuild_layout()
 
     async def on_pick(self, interaction: discord.Interaction, item: dict):
-        await inventory_set_selected(self.guild_id, self.user_id, item["_id"])
+        if self.application:
+            await application_inventory_set_selected(self.user_id, item["_id"])
+        else:
+            await inventory_set_selected(self.guild_id, self.user_id, item["_id"])
         await interaction.response.send_message(
             f"{item['uma_name']} is now your selected Uma for races.",
             ephemeral=True,
@@ -785,15 +796,20 @@ class InventoryView(PaginatedLayoutView):
     items_per_page = 5
     title_text = "Inventory"
 
-    def __init__(self, guild_id: int, user: discord.Member | discord.User, *, page: int = 1):
+    def __init__(self, guild_id: int, user: discord.Member | discord.User, *, application: bool = False, page: int = 1):
         super().__init__(page=page, timeout=180)
         self.guild_id = guild_id
         self.user = user
+        self.application = application
         self.items: list[dict] = []
         self._message: discord.Message | None = None
 
     async def _rebuild_layout(self):
-        self.items = await inventory_list(self.guild_id, self.user.id)
+        self.items = (
+            await application_inventory_list(self.user.id)
+            if self.application
+            else await inventory_list(self.guild_id, self.user.id)
+        )
         total_pages = self.clamp_page(len(self.items))
         page_items = self.page_items(self.items)
 

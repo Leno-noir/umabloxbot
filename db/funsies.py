@@ -822,6 +822,75 @@ async def application_inventory_add_copy(user_id: int, uma_document: dict) -> di
     return document
 
 
+async def application_inventory_list(user_id: int) -> list[dict]:
+    """Return application-owned Umas enriched from the shared catalogue."""
+    application_db = get_application_db()
+    inventory = await application_db.user_uma_inventory.find({"user_id": user_id}).to_list(length=None)
+    uma_ids = [item["uma_id"] for item in inventory if item.get("uma_id")]
+    if not uma_ids:
+        return []
+
+    catalog = await get_db().uma_characters.find({"_id": {"$in": uma_ids}}).to_list(length=None)
+    catalog_by_id = {uma["_id"]: uma for uma in catalog}
+    items = []
+    for inventory_item in inventory:
+        uma = catalog_by_id.get(inventory_item.get("uma_id"))
+        if not uma:
+            continue
+        items.append(
+            {
+                **inventory_item,
+                "uma_name": uma["name"],
+                "rarity": uma["rarity"],
+                "overall": uma["overall"],
+                "image_url": uma.get("image_url"),
+                "uma_active": uma.get("active", True),
+            }
+        )
+    items.sort(key=lambda item: (-int(item.get("overall", 0)), item.get("obtained_at", _now())))
+    return await _attach_rarity_names(GLOBAL_FUNSIES_GUILD_ID, items)
+
+
+async def application_inventory_get_selected(user_id: int) -> dict | None:
+    return await get_application_db().user_race_settings.find_one({"user_id": user_id})
+
+
+async def application_inventory_set_selected(user_id: int, inventory_id: ObjectId | None) -> None:
+    await get_application_db().user_race_settings.update_one(
+        {"user_id": user_id},
+        {"$set": {"selected_inventory_uma_id": inventory_id, "updated_at": _now()}},
+        upsert=True,
+    )
+
+
+async def application_inventory_get_selected_or_best(user_id: int) -> dict | None:
+    inventory = await application_inventory_list(user_id)
+    if not inventory:
+        return None
+    selected = await application_inventory_get_selected(user_id)
+    selected_id = selected.get("selected_inventory_uma_id") if selected else None
+    return next((item for item in inventory if item["_id"] == selected_id), inventory[0])
+
+
+async def application_inventory_increment_win(user_id: int, inventory_id: ObjectId, amount: int = 1) -> bool:
+    result = await get_application_db().user_uma_inventory.update_one(
+        {"_id": inventory_id, "user_id": user_id}, {"$inc": {"wins": amount}}
+    )
+    return result.modified_count > 0
+
+
+async def application_race_save_result(result: dict) -> dict:
+    document = {**result, "created_at": result.get("created_at", _now())}
+    inserted = await get_application_db().uma_race_results.insert_one(document)
+    document["_id"] = inserted.inserted_id
+    return document
+
+
+async def application_race_get_leaderboard(limit: int = 50) -> list[dict]:
+    cursor = get_application_db().uma_race_results.find({}).sort("winner_time_ms", 1).limit(limit)
+    return await cursor.to_list(length=limit)
+
+
 async def race_save_result(result: dict) -> dict:
     db = get_db()
     document = dict(result)
@@ -955,6 +1024,10 @@ async def ensure_application_gacha_indexes() -> None:
         [("user_id", 1), ("uma_id", 1)],
         unique=True,
         name="unique_application_owned_uma",
+    )
+    await db.user_race_settings.create_index("user_id", unique=True, name="unique_application_race_setting")
+    await db.uma_race_results.create_index(
+        [("winner_time_ms", 1), ("created_at", -1)], name="application_race_leaderboard"
     )
 
 

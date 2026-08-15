@@ -6,10 +6,12 @@ Funsies commands.
 
 ## User-installed application commands
 
-`/quote`, `/fact`, and `/gacha` are also global application commands. A user
-who installs the app on their Discord account can use them in DMs and group
-DMs. The `/gacha` command detects the install type: guild installations use
-the server gacha data; user installations use the separate
+`/quote`, `/fact`, and every Gacha command (`/gacha`, `/gacha-info`,
+`/uma-list`, `/uma-info`, `/uma-inventory`, `/choose-your-race-uma`, `/race`,
+and `/leaderboard`) are also global application commands. A user who installs
+the app on their Discord account can use them in DMs and group DMs. Gacha
+commands detect the install type: guild installations use the server gacha
+data; user installations use the separate
 `umablox_application` MongoDB database for daily usage and owned Umas. The
 Uma catalogue remains shared so both experiences have the same available
 characters.
